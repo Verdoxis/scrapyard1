@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     const action = String(body.action ?? "create");
 
     if (action === "create") {
-      const side = body.side === "t" ? "t" : "ct";
+      const side = body.side === "black" ? "black" : "red";
       const assetIds = Array.isArray(body.assetIds)
         ? body.assetIds.map(String)
         : [];

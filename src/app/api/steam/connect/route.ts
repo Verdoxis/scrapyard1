@@ -10,12 +10,17 @@ export async function POST(req: Request) {
     const user = getUser();
     const profile = await fetchSteamProfile(tradeUrl);
 
+    // Display name is always the Steam persona when available
     connectSteam(user, tradeUrl, {
-      displayName: body.displayName ? String(body.displayName) : undefined,
       steamId64: profile?.steamId64 ?? null,
       avatarUrl: profile?.avatarUrl ?? null,
       profileUrl: profile?.profileUrl ?? null,
       personaName: profile?.personaName ?? null,
+      displayName: profile?.personaName
+        ? undefined
+        : body.displayName
+          ? String(body.displayName)
+          : undefined,
     });
 
     heartbeat({

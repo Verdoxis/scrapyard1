@@ -16,15 +16,13 @@ const DEMO_URL =
 export default function ConnectPage() {
   const { user, bot, refresh, setUser } = useApp();
   const [tradeUrl, setTradeUrl] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
     if (user?.steamTradeUrl) setTradeUrl(user.steamTradeUrl);
-    if (user?.displayName) setName(user.displayName);
-  }, [user?.steamTradeUrl, user?.displayName]);
+  }, [user?.steamTradeUrl]);
 
   async function connect() {
     setBusy(true);
@@ -34,7 +32,6 @@ export default function ConnectPage() {
         method: "POST",
         body: JSON.stringify({
           steamTradeUrl: tradeUrl,
-          displayName: name,
         }),
       });
       setUser(data.user);
@@ -86,16 +83,10 @@ export default function ConnectPage() {
 
       <div className="mt-6 grid gap-4 rounded border border-[rgba(196,92,38,0.25)] bg-[rgba(16,13,10,0.95)] p-5 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
-          <Label className="text-[#a89a8c]">Display name</Label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="border-[rgba(196,92,38,0.3)] bg-black/30 text-[#f3ebe2]"
-            placeholder="Survivor"
-          />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
           <Label className="text-[#a89a8c]">Steam trade URL</Label>
+          <p className="text-xs text-[#8a7d70]">
+            Your Steam persona name and avatar are imported automatically.
+          </p>
           <Input
             value={tradeUrl}
             onChange={(e) => setTradeUrl(e.target.value)}

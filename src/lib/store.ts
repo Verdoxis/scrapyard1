@@ -37,17 +37,23 @@ export interface SteamInvItem {
   locked: boolean;
 }
 
+export type CoinSide = "red" | "black";
+
 export interface CoinflipGame {
   id: string;
   status: "awaiting_creator_trade" | "open" | "awaiting_joiner_trade" | "flipping" | "settled" | "cancelled";
   creatorId: string;
-  creatorSide: "ct" | "t";
+  creatorName: string;
+  creatorAvatar: string | null;
+  creatorSide: CoinSide;
   creatorItems: EscrowItem[];
   joinerId?: string;
-  joinerSide?: "ct" | "t";
+  joinerName?: string;
+  joinerAvatar?: string | null;
+  joinerSide?: CoinSide;
   joinerItems: EscrowItem[];
   winnerId?: string;
-  resultSide?: "ct" | "t";
+  resultSide?: CoinSide;
   totalValue: number;
   rakeValue: number;
   winnerItems: EscrowItem[];
@@ -113,11 +119,11 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV3?: GlobalState };
+const g = globalThis as unknown as { __scrapyardV4?: GlobalState };
 
 function state(): GlobalState {
-  if (!g.__scrapyardV3) {
-    g.__scrapyardV3 = {
+  if (!g.__scrapyardV4) {
+    g.__scrapyardV4 = {
       users: new Map(),
       coinflips: new Map(),
       jackpot: null,
@@ -125,7 +131,7 @@ function state(): GlobalState {
       houseEarnings: 0,
     };
   }
-  return g.__scrapyardV3;
+  return g.__scrapyardV4;
 }
 
 export const DEMO_USER_ID = "demo-survivor";
@@ -211,10 +217,11 @@ export function connectSteam(
   user.steamId64 = opts?.steamId64 ?? user.steamId64;
   user.avatarUrl = opts?.avatarUrl ?? user.avatarUrl;
   user.profileUrl = opts?.profileUrl ?? user.profileUrl;
-  if (opts?.displayName?.trim()) {
-    user.displayName = opts.displayName.trim().slice(0, 24);
-  } else if (opts?.personaName?.trim()) {
-    user.displayName = opts.personaName.trim().slice(0, 24);
+  // Prefer Steam persona name as the site display name
+  if (opts?.personaName?.trim()) {
+    user.displayName = opts.personaName.trim().slice(0, 32);
+  } else if (opts?.displayName?.trim()) {
+    user.displayName = opts.displayName.trim().slice(0, 32);
   }
   // Always refresh listed skins from the Steam market catalog for demo
   user.steamInventory = buildMockSteamInventory();

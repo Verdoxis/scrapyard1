@@ -7,9 +7,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/2059874994615508397/2D0F46481461E879DE3A22A68BC85213DFECB89E/",
     "accent": "#943c84",
     "bg": "#42413e",
-    "price": 130,
+    "price": 89,
     "sellOrders": 104,
-    "localImage": "/items/steam/arctic-skull-ar.png"
+    "localImage": "/items/steam/arctic-skull-ar.png",
+    "priceUsd": 0.89
   },
   {
     "name": "ARnana",
@@ -19,9 +20,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/2036238827505547391/2601EE4B9BEC46664D7FDB2D0FF61C44645387BB/",
     "accent": "#fcfc34",
     "bg": "#42413e",
-    "price": 132,
+    "price": 123,
     "sellOrders": 76,
-    "localImage": "/items/steam/arnana.png"
+    "localImage": "/items/steam/arnana.png",
+    "priceUsd": 1.23
   },
   {
     "name": "Comics MP5",
@@ -31,9 +33,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1695026091726110401/5013DB607680F071570D7970483D1B0C07F4F49F/",
     "accent": "#7f7f7f",
     "bg": "#42413e",
-    "price": 454,
+    "price": 319,
     "sellOrders": 112,
-    "localImage": "/items/steam/comics-mp5.png"
+    "localImage": "/items/steam/comics-mp5.png",
+    "priceUsd": 3.19
   },
   {
     "name": "Charcoal Sketch MP5",
@@ -43,9 +46,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/2061012942965597334/DD6B37C4DFACF8A90340405965BCCA5880A05F08/",
     "accent": "#bc9e73",
     "bg": "#42413e",
-    "price": 110,
+    "price": 75,
     "sellOrders": 107,
-    "localImage": "/items/steam/charcoal-sketch-mp5.png"
+    "localImage": "/items/steam/charcoal-sketch-mp5.png",
+    "priceUsd": 0.75
   },
   {
     "name": "Bombing Thompson",
@@ -55,9 +59,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1769319993640421871/25E5328C9AB95B8F7418AF754585A2D7F3C1F98E/",
     "accent": "#d5c148",
     "bg": "#42413e",
-    "price": 111,
+    "price": 86,
     "sellOrders": 238,
-    "localImage": "/items/steam/bombing-thompson.png"
+    "localImage": "/items/steam/bombing-thompson.png",
+    "priceUsd": 0.86
   },
   {
     "name": "Blackout Thompson",
@@ -67,9 +72,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1771573875580631806/A4901EF4CCAB088837CECA626F4668B4EC695054/",
     "accent": "#8c3c3c",
     "bg": "#42413e",
-    "price": 398,
+    "price": 292,
     "sellOrders": 154,
-    "localImage": "/items/steam/blackout-thompson.png"
+    "localImage": "/items/steam/blackout-thompson.png",
+    "priceUsd": 2.92
   },
   {
     "name": "Cold Hunter SMG",
@@ -79,9 +85,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/2452853181155101765/7B1192357FC5D2A39ABA22E62554202669946539/",
     "accent": "#34748c",
     "bg": "#42413e",
-    "price": 169,
+    "price": 126,
     "sellOrders": 49,
-    "localImage": "/items/steam/cold-hunter-smg.png"
+    "localImage": "/items/steam/cold-hunter-smg.png",
+    "priceUsd": 1.26
   },
   {
     "name": "Ghost Halloween SMG",
@@ -91,9 +98,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/17966179007788274673/7D60F36FC769D6A1EED3A6DAD920322538EB7BC7/",
     "accent": "#74858a",
     "bg": "#42413e",
-    "price": 174,
+    "price": 120,
     "sellOrders": 46,
-    "localImage": "/items/steam/ghost-halloween-smg.png"
+    "localImage": "/items/steam/ghost-halloween-smg.png",
+    "priceUsd": 1.2
   },
   {
     "name": "Blackout Python",
@@ -103,9 +111,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1932636665994374484/CCC4825076674EE897916D6E6D5FBB60014AA4E3/",
     "accent": "#b84646",
     "bg": "#42413e",
-    "price": 728,
+    "price": 687,
     "sellOrders": 74,
-    "localImage": "/items/steam/blackout-python.png"
+    "localImage": "/items/steam/blackout-python.png",
+    "priceUsd": 6.87
   },
   {
     "name": "Dark Silver Python",
@@ -115,9 +124,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/877504114899287878/78479E5897EF26CC0C822267209BD8012F7E72E5/",
     "accent": "#4a7fb4",
     "bg": "#42413e",
-    "price": 103,
+    "price": 74,
     "sellOrders": 54,
-    "localImage": "/items/steam/dark-silver-python.png"
+    "localImage": "/items/steam/dark-silver-python.png",
+    "priceUsd": 0.74
   },
   {
     "name": "Blackout BAR",
@@ -127,9 +137,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1772698127137072174/D64E1E167871F2BC57C3F38110F76EAD1BDEABB6/",
     "accent": "#3298cc",
     "bg": "#42413e",
-    "price": 166,
+    "price": 117,
     "sellOrders": 141,
-    "localImage": "/items/steam/blackout-bar.png"
+    "localImage": "/items/steam/blackout-bar.png",
+    "priceUsd": 1.17
   },
   {
     "name": "Heat Seeker Bolt Rifle",
@@ -139,9 +150,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/9350347146200324988/27FB8E60BCCCE41C670E4A0808CDAC98AC29C257/",
     "accent": "#e8ba07",
     "bg": "#42413e",
-    "price": 189,
+    "price": 261,
     "sellOrders": 65,
-    "localImage": "/items/steam/heat-seeker-bolt-rifle.png"
+    "localImage": "/items/steam/heat-seeker-bolt-rifle.png",
+    "priceUsd": 2.61
   },
   {
     "name": "Blackout SAR",
@@ -151,9 +163,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1692750740656031058/4E4CEED773899CC00DC54CCE4B8FFB30D16E2322/",
     "accent": "#2a7fd4",
     "bg": "#42413e",
-    "price": 269,
+    "price": 213,
     "sellOrders": 122,
-    "localImage": "/items/steam/blackout-sar.png"
+    "localImage": "/items/steam/blackout-sar.png",
+    "priceUsd": 2.13
   },
   {
     "name": "Black Ops SAR",
@@ -163,9 +176,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/36694476717774009/179935C78F2FA11D0CAB13C8D2A0087261CEA909/",
     "accent": "#81817d",
     "bg": "#42413e",
-    "price": 141,
+    "price": 104,
     "sellOrders": 87,
-    "localImage": "/items/steam/black-ops-sar.png"
+    "localImage": "/items/steam/black-ops-sar.png",
+    "priceUsd": 1.04
   },
   {
     "name": "Flow Pump Shotgun",
@@ -175,9 +189,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/11659165166568967390/FB53C613080FD20B8B92BB266190CDEDDCB83D93/",
     "accent": "#798585",
     "bg": "#42413e",
-    "price": 130,
+    "price": 84,
     "sellOrders": 64,
-    "localImage": "/items/steam/flow-pump-shotgun.png"
+    "localImage": "/items/steam/flow-pump-shotgun.png",
+    "priceUsd": 0.84
   },
   {
     "name": "Chieftain Pump Shotgun",
@@ -187,9 +202,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/424817831926710158/07567E4E32DFE86DED46B75A33009EB2709CBDAD/",
     "accent": "#d66d3d",
     "bg": "#42413e",
-    "price": 66,
+    "price": 56,
     "sellOrders": 37,
-    "localImage": "/items/steam/chieftain-pump-shotgun.png"
+    "localImage": "/items/steam/chieftain-pump-shotgun.png",
+    "priceUsd": 0.56
   },
   {
     "name": "Black OPS Metal Facemask",
@@ -199,9 +215,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/11501615150397575304/3F5A4B69E605538E9E11C4C46EB1C4E99AB19FE3/",
     "accent": "#808579",
     "bg": "#42413e",
-    "price": 69,
+    "price": 48,
     "sellOrders": 224,
-    "localImage": "/items/steam/black-ops-metal-facemask.png"
+    "localImage": "/items/steam/black-ops-metal-facemask.png",
+    "priceUsd": 0.48
   },
   {
     "name": "Blackout Facemask",
@@ -211,9 +228,10 @@
     "previewUrl": "https://images.steamusercontent.com/ugc/1026203865984922154/7F06944741B55827F9F4480BA027101602E5EE9B/",
     "accent": "#4376bb",
     "bg": "#42413e",
-    "price": 745,
+    "price": 583,
     "sellOrders": 126,
-    "localImage": "/items/steam/blackout-facemask.png"
+    "localImage": "/items/steam/blackout-facemask.png",
+    "priceUsd": 5.83
   },
   {
     "name": "Blue Hoodie",
@@ -223,9 +241,10 @@
     "previewUrl": null,
     "accent": "#4687b8",
     "bg": "#42413e",
-    "price": 13,
+    "price": 10,
     "sellOrders": 4131,
-    "localImage": "/items/steam/blue-hoodie.png"
+    "localImage": "/items/steam/blue-hoodie.png",
+    "priceUsd": 0.1
   },
   {
     "name": "Black Hoodie",
@@ -235,8 +254,9 @@
     "previewUrl": null,
     "accent": "#3f6fbf",
     "bg": "#42413e",
-    "price": 36,
+    "price": 27,
     "sellOrders": 1655,
-    "localImage": "/items/steam/black-hoodie.png"
+    "localImage": "/items/steam/black-hoodie.png",
+    "priceUsd": 0.27
   }
 ]

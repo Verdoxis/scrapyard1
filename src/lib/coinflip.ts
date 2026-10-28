@@ -13,6 +13,7 @@ import {
   publicCoinflip,
   saveCoinflip,
   saveUser,
+  type CoinSide,
   type CoinflipGame,
   type UserState,
 } from "./store";
@@ -21,6 +22,10 @@ function requireSteam(user: UserState) {
   if (!user.steamConnected) {
     throw new Error("Connect Steam first — paste your trade URL on the Connect page.");
   }
+}
+
+function opposite(side: CoinSide): CoinSide {
+  return side === "red" ? "black" : "red";
 }
 
 export function listCoinflips() {
@@ -32,7 +37,7 @@ export function listCoinflips() {
     .map(publicCoinflip);
 }
 
-export function createCoinflip(assetIds: string[], side: "ct" | "t") {
+export function createCoinflip(assetIds: string[], side: CoinSide) {
   const user = getUser();
   requireSteam(user);
 
@@ -47,6 +52,8 @@ export function createCoinflip(assetIds: string[], side: "ct" | "t") {
     id: nanoid(10),
     status: "awaiting_creator_trade",
     creatorId: user.id,
+    creatorName: user.displayName,
+    creatorAvatar: user.avatarUrl,
     creatorSide: side,
     creatorItems: trade.items,
     joinerItems: [],
@@ -99,7 +106,9 @@ export function joinCoinflip(gameId: string, assetIds: string[]) {
   });
 
   game.joinerId = user.id;
-  game.joinerSide = game.creatorSide === "ct" ? "t" : "ct";
+  game.joinerName = user.displayName;
+  game.joinerAvatar = user.avatarUrl;
+  game.joinerSide = opposite(game.creatorSide);
   game.joinerItems = trade.items;
   game.status = "awaiting_joiner_trade";
   game.totalValue = itemsValue([...game.creatorItems, ...game.joinerItems]);
@@ -153,7 +162,9 @@ export function callBotOpponent(gameId: string) {
 
   const items = botItemsNearValue(itemsValue(open.creatorItems));
   open.joinerId = "house-bot";
-  open.joinerSide = open.creatorSide === "ct" ? "t" : "ct";
+  open.joinerName = "Scrapyard Bot";
+  open.joinerAvatar = "/logo.svg";
+  open.joinerSide = opposite(open.creatorSide);
   open.joinerItems = items;
   open.totalValue = itemsValue([...open.creatorItems, ...open.joinerItems]);
   settleCoinflip(open);
@@ -170,7 +181,7 @@ function settleCoinflip(game: CoinflipGame) {
   creator.nonce += 1;
   saveUser(creator);
 
-  const resultSide: "ct" | "t" = roll < 0.5 ? "ct" : "t";
+  const resultSide: CoinSide = roll < 0.5 ? "red" : "black";
   game.resultSide = resultSide;
   game.winnerId =
     resultSide === game.creatorSide ? game.creatorId : game.joinerId;
