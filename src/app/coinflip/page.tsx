@@ -59,39 +59,117 @@ function isBotCreator(id: string) {
   return id.startsWith("bot-") || id.startsWith("bot-lobby") || id === "house-bot";
 }
 
+function SideChip({ side, size = "md" }: { side: CoinSide; size?: "sm" | "md" }) {
+  const dim = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  return (
+    <span
+      title={side === "red" ? "Red" : "Black"}
+      aria-label={side === "red" ? "Red" : "Black"}
+      className={cn(
+        "inline-block shrink-0 rounded-full border",
+        dim,
+        side === "red"
+          ? "border-[#ff9a7a] bg-[#cd412b] shadow-[0_0_8px_rgba(205,65,43,0.55)]"
+          : "border-[#c8c8c8] bg-[#2a2a2a] shadow-[0_0_8px_rgba(0,0,0,0.55)]",
+      )}
+    />
+  );
+}
+
 function PlayerChip({
   name,
   avatar,
   side,
   large,
+  align = "left",
 }: {
   name: string;
   avatar: string | null | undefined;
   side: CoinSide;
   large?: boolean;
+  align?: "left" | "right";
 }) {
+  const right = align === "right";
   return (
-    <div className="flex items-center gap-3">
+    <div
+      className={cn(
+        "flex items-center gap-3",
+        right && "flex-row-reverse text-right",
+      )}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={avatar || "/logo.svg"}
         alt=""
         className={cn(
-          "rounded-sm border border-[rgba(205,65,43,0.45)] object-cover",
+          "rounded-sm object-cover",
           large ? "h-14 w-14" : "h-9 w-9",
+          side === "red"
+            ? "border border-[#cd412b]"
+            : "border border-[#6a6a6a]",
         )}
       />
-      <div>
-        <p
+      <div className={cn("min-w-0", right && "flex flex-col items-end")}>
+        <div
           className={cn(
-            "font-semibold text-[#efe6da]",
-            large ? "font-display text-2xl tracking-wide" : "text-sm",
+            "flex items-center gap-2",
+            right && "flex-row-reverse",
           )}
         >
-          {name}
-        </p>
+          <p
+            className={cn(
+              "truncate font-semibold text-[#efe6da]",
+              large ? "font-display text-xl tracking-wide sm:text-2xl" : "text-sm",
+            )}
+          >
+            {name}
+          </p>
+          <SideChip side={side} size={large ? "md" : "sm"} />
+        </div>
         <p
-          className="text-[10px] uppercase tracking-[0.18em]"
+          className="mt-0.5 text-[10px] uppercase tracking-[0.18em]"
+          style={{ color: side === "red" ? "#e85a45" : "#a8a8a8" }}
+        >
+          {side}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function EmptySlot({ side, align = "right" }: { side: CoinSide; align?: "left" | "right" }) {
+  const right = align === "right";
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3",
+        right && "flex-row-reverse text-right",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-14 w-14 items-center justify-center rounded-sm border border-dashed",
+          side === "red"
+            ? "border-[#cd412b]/60 bg-[rgba(205,65,43,0.08)]"
+            : "border-[#6a6a6a]/60 bg-black/30",
+        )}
+      >
+        <SideChip side={side} />
+      </div>
+      <div className={cn(right && "flex flex-col items-end")}>
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            right && "flex-row-reverse",
+          )}
+        >
+          <p className="font-display text-xl tracking-wide text-[#6b6258]">
+            Waiting
+          </p>
+          <SideChip side={side} />
+        </div>
+        <p
+          className="mt-0.5 text-[10px] uppercase tracking-[0.18em]"
           style={{ color: side === "red" ? "#e85a45" : "#a8a8a8" }}
         >
           {side}
@@ -104,16 +182,11 @@ function PlayerChip({
 export default function CoinflipPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
-      <p className="text-[10px] uppercase tracking-[0.28em] text-[#cd412b]">
-        Red / black · {HOUSE_RAKE_PERCENT}% rake
-      </p>
       <h1 className="font-display text-4xl tracking-wide text-[#efe6da]">
         Coinflip
       </h1>
-      <p className="mt-2 max-w-2xl text-sm text-[#a89888]">
-        Join open lobbies by picking skins near their stake — it doesn&apos;t
-        have to be exact; the difference shifts your win %. Create your own from
-        the side panel. Winner gets a Steam trade link to claim.
+      <p className="mt-2 max-w-xl text-sm text-[#a89888]">
+        Pick a lobby, match the stake, watch the flip. {HOUSE_RAKE_PERCENT}% rake.
       </p>
       <div className="mt-8">
         <ConnectGate>
@@ -370,17 +443,10 @@ function CoinflipLobby() {
     <div className="relative">
       {win && <WinModal win={win} onClose={() => setWin(null)} />}
 
-      {/* Top actions */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-3xl tracking-wide text-[#efe6da]">
-            Open flips
-          </h2>
-          <p className="text-sm text-[#a89888]">
-            Join with a close stake — exact match not required. Putting in more
-            raises your win chance.
-          </p>
-        </div>
+        <h2 className="font-display text-3xl tracking-wide text-[#efe6da]">
+          Open flips
+        </h2>
         <Button
           onClick={() => {
             setJoinTarget(null);
@@ -388,7 +454,7 @@ function CoinflipLobby() {
           }}
           className="h-11 bg-[#cd412b] px-5 text-[#140c08] hover:bg-[#e25a3c]"
         >
-          Create your flip
+          Create flip
         </Button>
       </div>
 
@@ -422,55 +488,49 @@ function CoinflipLobby() {
             const canJoin =
               g.status === "open" && !mine && !isBotCreator(user?.id ?? "");
             const spinning = spinId === g.id;
+            const joinerSide =
+              g.joinerSide ?? (g.creatorSide === "red" ? "black" : "red");
+            const creatorWon =
+              g.status === "settled" && g.winnerId === g.creatorId;
+            const joinerWon =
+              g.status === "settled" &&
+              Boolean(g.joinerId) &&
+              g.winnerId === g.joinerId;
 
             return (
               <div
                 key={g.id}
                 className={cn(
-                  "relative overflow-hidden rounded-sm border p-5 transition",
+                  "relative overflow-hidden rounded-sm border p-4 sm:p-5 transition",
                   spinning
                     ? "border-[#f0a060] bg-[rgba(48,28,16,0.95)] shadow-[0_0_40px_rgba(205,65,43,0.25)]"
                     : "border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.94)] hover:border-[rgba(240,160,96,0.55)]",
                 )}
               >
-                <div
-                  className="pointer-events-none absolute inset-y-0 left-0 w-1.5"
-                  style={{
-                    background:
-                      g.creatorSide === "red" ? "#cd412b" : "#3a3a3a",
-                  }}
-                />
-
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <div className="flex flex-wrap items-center gap-4">
-                      <PlayerChip
-                        name={g.creatorName}
-                        avatar={g.creatorAvatar}
-                        side={g.creatorSide}
-                        large
-                      />
-                      {g.joinerName && g.joinerSide && (
-                        <>
-                          <span className="font-display text-xl text-[#6b6258]">
-                            VS
-                          </span>
-                          <PlayerChip
-                            name={g.joinerName}
-                            avatar={g.joinerAvatar}
-                            side={g.joinerSide}
-                            large
-                          />
-                        </>
-                      )}
-                    </div>
+                {/* Arena: left contestant · coin · right contestant */}
+                <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-[1fr_auto_1fr] sm:gap-3">
+                  <div
+                    className={cn(
+                      "min-w-0 space-y-3 rounded-sm px-2 py-2 sm:px-3",
+                      creatorWon && "bg-[rgba(205,65,43,0.12)]",
+                    )}
+                  >
+                    <PlayerChip
+                      name={g.creatorName}
+                      avatar={g.creatorAvatar}
+                      side={g.creatorSide}
+                      large
+                      align="left"
+                    />
                     <SkinIconRow items={g.creatorItems} size="sm" />
-                    {g.joinerItems.length > 0 && (
-                      <SkinIconRow items={g.joinerItems} size="sm" />
+                    {creatorWon && (
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f0a060]">
+                        Winner
+                      </p>
                     )}
                   </div>
 
-                  <div className="flex flex-col items-center gap-3 lg:min-w-[160px]">
+                  <div className="flex flex-col items-center justify-center gap-2 px-2">
                     <RustCoin
                       side={g.resultSide || g.creatorSide}
                       landSide={
@@ -479,61 +539,84 @@ function CoinflipLobby() {
                       size="lg"
                       spinning={spinning && spinLand != null}
                     />
-                    <p className="font-display text-4xl tracking-wide text-[#f0a060]">
-                      {formatPrice(spinning ? g.totalValue : wager)}
+                    <p className="font-display text-3xl tracking-wide text-[#f0a060] sm:text-4xl">
+                      {formatPrice(spinning || g.joinerId ? g.totalValue : wager)}
                     </p>
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
-                      {g.status.replaceAll("_", " ")}
+                      {spinning
+                        ? "Flipping…"
+                        : g.status === "settled" && g.resultSide
+                          ? `${g.resultSide} wins`
+                          : g.status.replaceAll("_", " ")}
                     </p>
                   </div>
 
-                  <div className="flex w-full flex-col gap-2 lg:w-52">
-                    {canJoin && (
+                  <div
+                    className={cn(
+                      "min-w-0 space-y-3 rounded-sm px-2 py-2 sm:px-3",
+                      joinerWon && "bg-[rgba(205,65,43,0.12)]",
+                    )}
+                  >
+                    {g.joinerName ? (
                       <>
-                        <Button
-                          disabled={busy || spinning}
-                          onClick={() => openJoinPicker(g, true)}
-                          className="h-12 bg-[#cd412b] text-base text-[#140c08] hover:bg-[#e25a3c]"
-                        >
-                          {joining ? "Picking skins…" : "Join flip"}
-                        </Button>
-                        <p className="text-center text-[11px] text-[#8a7d70]">
-                          Match near {formatPrice(wager)} · max{" "}
-                          {COINFLIP_MAX_CHANCE_DIFF_PERCENT}% win-chance gap
-                        </p>
+                        <PlayerChip
+                          name={g.joinerName}
+                          avatar={g.joinerAvatar}
+                          side={joinerSide}
+                          large
+                          align="right"
+                        />
+                        {g.joinerItems.length > 0 && (
+                          <SkinIconRow
+                            items={g.joinerItems}
+                            size="sm"
+                            align="right"
+                          />
+                        )}
+                        {joinerWon && (
+                          <p className="text-right text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f0a060]">
+                            Winner
+                          </p>
+                        )}
                       </>
-                    )}
-
-                    {mine && g.status === "open" && (
-                      <Button
-                        disabled={busy || spinning}
-                        onClick={() => void callBot(g.id)}
-                        className="h-11 bg-[rgba(205,65,43,0.3)] text-[#f0a060] hover:bg-[rgba(205,65,43,0.45)]"
-                      >
-                        Call bot opponent
-                      </Button>
-                    )}
-
-                    {mine && g.status === "awaiting_creator_trade" && (
-                      <p className="text-center text-xs text-[#fbbf24]">
-                        Waiting for your deposit trade…
-                      </p>
-                    )}
-
-                    {g.status === "settled" && g.resultSide && (
-                      <p className="text-center text-sm text-[#efe6da]">
-                        <span
-                          style={{
-                            color:
-                              g.resultSide === "red" ? "#e85a45" : "#c8c8c8",
-                          }}
-                        >
-                          {g.resultSide.toUpperCase()}
-                        </span>{" "}
-                        wins
-                      </p>
+                    ) : (
+                      <EmptySlot side={joinerSide} align="right" />
                     )}
                   </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 border-t border-[rgba(255,255,255,0.06)] pt-4">
+                  {canJoin && (
+                    <>
+                      <Button
+                        disabled={busy || spinning}
+                        onClick={() => openJoinPicker(g, true)}
+                        className="h-11 min-w-[160px] bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
+                      >
+                        {joining ? "Picking skins…" : "Join flip"}
+                      </Button>
+                      <p className="w-full text-center text-[11px] text-[#8a7d70] sm:w-auto">
+                        Near {formatPrice(wager)} · ≤{" "}
+                        {COINFLIP_MAX_CHANCE_DIFF_PERCENT}% chance gap
+                      </p>
+                    </>
+                  )}
+
+                  {mine && g.status === "open" && (
+                    <Button
+                      disabled={busy || spinning}
+                      onClick={() => void callBot(g.id)}
+                      className="h-11 bg-[rgba(205,65,43,0.3)] text-[#f0a060] hover:bg-[rgba(205,65,43,0.45)]"
+                    >
+                      Call bot opponent
+                    </Button>
+                  )}
+
+                  {mine && g.status === "awaiting_creator_trade" && (
+                    <p className="text-center text-xs text-[#fbbf24]">
+                      Waiting for your deposit trade…
+                    </p>
+                  )}
                 </div>
               </div>
             );

@@ -132,13 +132,21 @@ export function SkinIconChip({
 export function SkinIconRow({
   items,
   size = "md",
+  align = "left",
 }: {
   items: Array<{ skin: SkinLike }>;
   size?: "sm" | "md";
+  align?: "left" | "right";
 }) {
   if (items.length === 0) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-2">
+    <div
+      className={
+        align === "right"
+          ? "mt-2 flex flex-wrap justify-end gap-2"
+          : "mt-2 flex flex-wrap gap-2"
+      }
+    >
       {items.map((item, idx) => (
         <SkinIconChip
           key={`${item.skin.name}-${idx}`}
