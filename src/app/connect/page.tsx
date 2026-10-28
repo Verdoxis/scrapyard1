@@ -24,9 +24,12 @@ export default function ConnectPage() {
     if (user?.steamTradeUrl) setTradeUrl(user.steamTradeUrl);
   }, [user?.steamTradeUrl]);
 
+  const [restockMsg, setRestockMsg] = useState<string | null>(null);
+
   async function connect() {
     setBusy(true);
     setError(null);
+    setRestockMsg(null);
     try {
       const data = await api<{ user: PublicUser }>("/api/steam/connect", {
         method: "POST",
@@ -38,6 +41,25 @@ export default function ConnectPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connect failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restock() {
+    setBusy(true);
+    setError(null);
+    setRestockMsg(null);
+    try {
+      const data = await api<{ user: PublicUser; message: string }>(
+        "/api/steam/restock",
+        { method: "POST", body: "{}" },
+      );
+      setUser(data.user);
+      setRestockMsg(data.message);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Restock failed");
     } finally {
       setBusy(false);
     }
@@ -153,11 +175,22 @@ export default function ConnectPage() {
                 Your Steam inventory
               </h2>
               <p className="text-sm text-[#a89a8c]">
-                Market icons from Steam economy CDN. Select skins on Coinflip or
-                Jackpot — the bot trades you for them.
+                Demo loads multiple copies of each skin so you can keep
+                testing. Restock anytime after trades.
               </p>
+              {restockMsg && (
+                <p className="mt-1 text-sm text-emerald-400">{restockMsg}</p>
+              )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                disabled={busy}
+                onClick={() => void restock()}
+                variant="outline"
+                className="border-[rgba(196,92,38,0.45)] text-[#f0a060] hover:bg-[rgba(196,92,38,0.12)]"
+              >
+                {busy ? "Working…" : "Restock demo skins"}
+              </Button>
               <Link
                 href="/coinflip"
                 className="rounded bg-[#c45c26] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[#120e0b]"

@@ -171,12 +171,41 @@ export function emptyStats(): UserStats {
 
 export const DEMO_USER_ID = "demo-survivor";
 
+/** Demo inventory — several copies of each catalog skin for testing. */
+const DEMO_COPIES_PER_SKIN = 4;
+
 export function buildMockSteamInventory(): SteamInvItem[] {
-  return SKINS.map((skin) => ({
-    assetId: `steam_${skin.id}_${nanoid(6)}`,
-    skinId: skin.id,
-    locked: false,
-  }));
+  const items: SteamInvItem[] = [];
+  for (const skin of SKINS) {
+    for (let i = 0; i < DEMO_COPIES_PER_SKIN; i++) {
+      items.push({
+        assetId: `steam_${skin.id}_${nanoid(6)}`,
+        skinId: skin.id,
+        locked: false,
+      });
+    }
+  }
+  // Extra high-value copies so jackpot/coinflip pots feel meatier
+  const premium = SKINS.filter(
+    (s) => s.rarity === "legendary" || s.rarity === "relic" || s.rarity === "epic",
+  );
+  for (const skin of premium) {
+    for (let i = 0; i < 2; i++) {
+      items.push({
+        assetId: `steam_${skin.id}_x_${nanoid(6)}`,
+        skinId: skin.id,
+        locked: false,
+      });
+    }
+  }
+  return items;
+}
+
+/** Replace demo Steam inventory with a fresh full stack. */
+export function restockDemoInventory(user: UserState) {
+  user.steamInventory = buildMockSteamInventory();
+  saveUser(user);
+  return user;
 }
 
 function freshUser(id: string): UserState {
