@@ -48,12 +48,13 @@ function RustCoin({
   spinning?: boolean;
 }) {
   const dim =
-    size === "lg" ? "h-28 w-28 text-2xl" : size === "sm" ? "h-12 w-12 text-xs" : "h-20 w-20 text-lg";
+    size === "lg" ? "h-28 w-28" : size === "sm" ? "h-12 w-12" : "h-20 w-20";
   const isRed = side === "red";
   return (
     <motion.div
+      aria-label={isRed ? "Red" : "Black"}
       className={cn(
-        "relative flex items-center justify-center rounded-full font-display tracking-[0.2em]",
+        "relative flex items-center justify-center rounded-full",
         dim,
         selected && "ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
       )}
@@ -64,14 +65,10 @@ function RustCoin({
         boxShadow: isRed
           ? "inset 0 0 0 3px rgba(255,180,140,0.25), 0 8px 20px rgba(140,20,10,0.45)"
           : "inset 0 0 0 3px rgba(180,180,180,0.2), 0 8px 20px rgba(0,0,0,0.55)",
-        color: isRed ? "#ffe8e0" : "#e8e8e8",
       }}
       animate={spinning ? { rotateY: 720 } : { rotateY: 0 }}
       transition={spinning ? { duration: 1.4, ease: "easeInOut" } : { duration: 0 }}
     >
-      <span className="drop-shadow-[0_2px_2px_rgba(0,0,0,0.6)]">
-        {isRed ? "RED" : "BLK"}
-      </span>
       <span
         className="pointer-events-none absolute inset-2 rounded-full border"
         style={{
