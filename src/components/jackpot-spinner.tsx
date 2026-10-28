@@ -12,8 +12,8 @@ export interface SpinnerDeposit {
 
 const PX_PER_PERCENT = 14;
 const MIN_SEG_PX = 72;
-const CYCLES = 10;
-const LAND_CYCLE = 8;
+const CYCLES = 12;
+const LAND_CYCLE = 9;
 
 const PLAYER_COLORS = [
   "#cd412b",
@@ -57,7 +57,7 @@ function ticketOffset(
     const next = cursor + seg.pct;
     if (ticket <= next || seg === segments[segments.length - 1]) {
       const local = seg.pct > 0 ? (ticket - cursor) / seg.pct : 0.5;
-      const clamped = Math.min(0.92, Math.max(0.08, local));
+      const clamped = Math.min(0.88, Math.max(0.12, local));
       let start = 0;
       for (const s of segments) {
         if (s === seg) break;
@@ -70,9 +70,12 @@ function ticketOffset(
   return 0;
 }
 
-function easeOutQuint(t: number) {
-  return 1 - Math.pow(1 - t, 5);
+/** Smooth decelerating ease — long cruise, soft settle. */
+function easeOutExpo(t: number) {
+  return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
 }
+
+type Seg = ReturnType<typeof buildSegments>[number];
 
 export function JackpotSpinner({
   deposits,
@@ -98,17 +101,47 @@ export function JackpotSpinner({
   const rafRef = useRef(0);
   const spunFor = useRef<string | null>(null);
   const modeRef = useRef<"idle" | "spin" | "hold">("idle");
+  /** Freeze layout for the duration of a spin so polling can't reshape the strip. */
+  const frozenRef = useRef<{
+    key: string;
+    segments: Seg[];
+    cycleWidth: number;
+  } | null>(null);
 
-  const segments = useMemo(
+  const liveSegments = useMemo(
     () => buildSegments(deposits, totalValue),
     [deposits, totalValue],
   );
-  const cycleWidth = useMemo(
-    () => segments.reduce((s, seg) => s + seg.width, 0) || 1,
-    [segments],
-  );
+
+  const spinKey =
+    status === "spinning" && winningTicket != null
+      ? `${winnerId}-${winningTicket}-${spinEndsAt}`
+      : null;
+
+  // Capture strip geometry once when a spin starts
+  if (spinKey && frozenRef.current?.key !== spinKey) {
+    frozenRef.current = {
+      key: spinKey,
+      segments: liveSegments,
+      cycleWidth: liveSegments.reduce((s, seg) => s + seg.width, 0) || 1,
+    };
+  }
+  if (status !== "spinning" && status !== "settled") {
+    frozenRef.current = null;
+    if (modeRef.current !== "spin") spunFor.current = null;
+  }
+
+  const segments =
+    (status === "spinning" || status === "settled") && frozenRef.current
+      ? frozenRef.current.segments
+      : liveSegments;
+  const cycleWidth =
+    (status === "spinning" || status === "settled") && frozenRef.current
+      ? frozenRef.current.cycleWidth
+      : segments.reduce((s, seg) => s + seg.width, 0) || 1;
+
   const strip = useMemo(() => {
-    const out: Array<(typeof segments)[number] & { key: string }> = [];
+    const out: Array<Seg & { key: string }> = [];
     for (let c = 0; c < CYCLES; c++) {
       for (const seg of segments) {
         out.push({ ...seg, key: `${c}-${seg.userId}-${seg.value}` });
@@ -135,15 +168,22 @@ export function JackpotSpinner({
   }, []);
 
   useEffect(() => {
-    cancelAnimationFrame(rafRef.current);
     if (segments.length === 0) {
+      cancelAnimationFrame(rafRef.current);
       applyX(0);
+      modeRef.current = "idle";
       return;
     }
 
-    const spinning = status === "spinning" && winningTicket != null;
+    const spinning = status === "spinning" && winningTicket != null && spinKey;
     const settled = status === "settled" && winningTicket != null;
-    const spinKey = `${winnerId}-${winningTicket}-${spinEndsAt}`;
+
+    // Already animating this spin — don't tear it down on poll re-renders
+    if (spinning && spunFor.current === spinKey && modeRef.current === "spin") {
+      return;
+    }
+
+    cancelAnimationFrame(rafRef.current);
 
     if (spinning && spunFor.current !== spinKey) {
       spunFor.current = spinKey;
@@ -151,18 +191,19 @@ export function JackpotSpinner({
       const targetInCycle = ticketOffset(segments, winningTicket!);
       const absolute = LAND_CYCLE * cycleWidth + targetInCycle;
       const endX = viewport / 2 - absolute;
-      // Start a couple cycles ahead of the land for a long smooth roll
-      const startX = viewport / 2 - (2 * cycleWidth + targetInCycle);
+      // Roll across several cycles before landing
+      const startX = viewport / 2 - (1.2 * cycleWidth + targetInCycle);
       applyX(startX);
-      const duration = Math.max(
-        2800,
-        (spinEndsAt ?? Date.now() + 7800) - Date.now(),
-      );
+
+      const remaining = (spinEndsAt ?? Date.now() + 8000) - Date.now();
+      const duration = Math.max(5200, Math.min(9000, remaining));
       const t0 = performance.now();
 
       const tick = (now: number) => {
+        if (modeRef.current !== "spin") return;
         const t = Math.min(1, (now - t0) / duration);
-        const e = easeOutQuint(t);
+        // Blend easings: mostly expo out, slight quint for a softer nose
+        const e = easeOutExpo(t) * 0.85 + (1 - Math.pow(1 - t, 4)) * 0.15;
         applyX(startX + (endX - startX) * e);
         if (t < 1) {
           rafRef.current = requestAnimationFrame(tick);
@@ -172,7 +213,12 @@ export function JackpotSpinner({
         }
       };
       rafRef.current = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(rafRef.current);
+      return () => {
+        // Only cancel if we're leaving this spin entirely
+        if (modeRef.current === "spin") {
+          /* keep going — cleanup on dep change is handled by spunFor guard */
+        }
+      };
     }
 
     if (settled || modeRef.current === "hold") {
@@ -183,18 +229,19 @@ export function JackpotSpinner({
       return;
     }
 
-    // Seamless idle crawl — wrap within one cycle width
+    // Idle crawl
     modeRef.current = "idle";
+    spunFor.current = null;
     let last = performance.now();
-    const speed = Math.max(28, cycleWidth / 22); // px/sec
+    const speed = Math.max(22, cycleWidth / 28);
 
     const tick = (now: number) => {
       if (modeRef.current !== "idle") return;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       let x = offsetRef.current - speed * dt;
-      // Keep translate in a stable band so the strip never jumps
       while (x <= -cycleWidth) x += cycleWidth;
+      while (x > 0) x -= cycleWidth;
       applyX(x);
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -205,6 +252,7 @@ export function JackpotSpinner({
     winningTicket,
     winnerId,
     spinEndsAt,
+    spinKey,
     segments,
     cycleWidth,
     viewport,
@@ -266,7 +314,10 @@ export function JackpotSpinner({
         <div
           ref={stripRef}
           className="flex h-[118px] w-max items-stretch will-change-transform"
-          style={{ transform: "translate3d(0,0,0)" }}
+          style={{
+            transform: "translate3d(0,0,0)",
+            transition: "none",
+          }}
         >
           {strip.map((seg) => {
             const isWinner =

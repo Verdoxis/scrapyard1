@@ -22,7 +22,7 @@ import {
   type UserState,
 } from "./store";
 
-const SPIN_DURATION_MS = 7800;
+const SPIN_DURATION_MS = 8500;
 const BOT_AVATARS = [
   "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
   "https://avatars.steamstatic.com/b5bd56c1aa4644a474a2e4972be27ef9e82e517e_full.jpg",
