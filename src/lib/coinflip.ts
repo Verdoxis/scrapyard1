@@ -148,6 +148,9 @@ export function joinCoinflip(gameId: string, assetIds: string[]) {
   if (!game) throw new Error("Coinflip not found.");
   if (game.status !== "open") throw new Error("This coinflip is not open to join.");
   if (game.creatorId === user.id) throw new Error("You cannot join your own coinflip.");
+  if (!assetIds.length) {
+    throw new Error("Pick skins first — tap items or use Quick select.");
+  }
 
   const skins = assetIds.map((id) => {
     const inv = user.steamInventory.find((i) => i.assetId === id);

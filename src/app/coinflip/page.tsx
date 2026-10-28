@@ -418,15 +418,22 @@ function CoinflipLobby() {
   }
 
   async function join(gameId: string, assetIds?: string[]) {
-    const ids =
-      assetIds ??
-      (joinTarget === gameId
-        ? selected
-        : pickAssetIdsNearValue(inventory, creatorWager(games.find((g) => g.id === gameId)!)));
+    // Only join with skins the player picked (tap or Quick select) — never auto-fill here
+    const ids = (assetIds ?? selected).filter(Boolean);
 
     if (ids.length === 0) {
-      setError("Select skins that match this lobby value first.");
+      setJoinTarget(gameId);
       setDrawerOpen(true);
+      setError("Pick skins first — tap items or use Quick select.");
+      return;
+    }
+
+    if (
+      joinGame &&
+      joinGame.id === gameId &&
+      !isCoinflipStakeAllowed(joinTargetCents, selectionValue(inventory, ids))
+    ) {
+      setError("Stake is too far from the lobby value — adjust your skins.");
       return;
     }
 
@@ -903,16 +910,24 @@ function CoinflipLobby() {
                   {joinGame ? (
                     <button
                       type="button"
-                      disabled={busy || !joinInRange}
-                      onClick={() => void join(joinGame.id, selected)}
-                      className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
+                      disabled={busy || selected.length === 0 || !joinInRange}
+                      onClick={() => {
+                        if (selected.length === 0) {
+                          setError(
+                            "Pick skins first — tap items or use Quick select.",
+                          );
+                          return;
+                        }
+                        void join(joinGame.id, selected);
+                      }}
+                      className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {busy
                         ? "Joining…"
-                        : joinInRange
-                          ? `Join · ${joinYourChance.toFixed(0)}%`
-                          : selected.length === 0
-                            ? "Pick skins"
+                        : selected.length === 0
+                          ? "Pick skins to join"
+                          : joinInRange
+                            ? `Join · ${joinYourChance.toFixed(0)}%`
                             : "Stake too far — adjust"}
                     </button>
                   ) : (

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { cruiseProgress } from "@/lib/spin-motion";
 
 export interface SpinnerDeposit {
   userId: string;
@@ -70,12 +71,54 @@ function ticketOffset(
   return 0;
 }
 
-/** Smooth decelerating ease — long cruise, soft settle. */
-function easeOutExpo(t: number) {
-  return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
-}
-
 type Seg = ReturnType<typeof buildSegments>[number];
+
+const StripCells = memo(function StripCells({
+  strip,
+  winnerId,
+  showWinner,
+}: {
+  strip: Array<Seg & { key: string }>;
+  winnerId?: string;
+  showWinner: boolean;
+}) {
+  return (
+    <>
+      {strip.map((seg) => {
+        const isWinner = showWinner && seg.userId === winnerId;
+        return (
+          <div
+            key={seg.key}
+            className="relative flex shrink-0 flex-col items-center justify-center gap-1.5 border-r border-black/40 px-2"
+            style={{
+              width: seg.width,
+              background: `linear-gradient(180deg, ${seg.color}33 0%, rgba(12,9,7,0.92) 70%)`,
+              boxShadow: isWinner
+                ? `inset 0 0 0 2px ${seg.color}`
+                : `inset 0 -3px 0 ${seg.color}`,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={seg.avatarUrl || "/logo.svg"}
+              alt=""
+              decoding="async"
+              draggable={false}
+              className="h-12 w-12 rounded-sm border object-cover"
+              style={{ borderColor: `${seg.color}99` }}
+            />
+            <p className="max-w-full truncate px-1 text-[11px] font-semibold text-[#efe6da]">
+              {seg.displayName}
+            </p>
+            <p className="font-mono text-[10px] text-[#f0a060]">
+              {(seg.pct * 100).toFixed(1)}%
+            </p>
+          </div>
+        );
+      })}
+    </>
+  );
+});
 
 export function JackpotSpinner({
   deposits,
@@ -202,8 +245,8 @@ export function JackpotSpinner({
       const tick = (now: number) => {
         if (modeRef.current !== "spin") return;
         const t = Math.min(1, (now - t0) / duration);
-        // Blend easings: mostly expo out, slight quint for a softer nose
-        const e = easeOutExpo(t) * 0.85 + (1 - Math.pow(1 - t, 4)) * 0.15;
+        // Accel → readable cruise → soft land (same profile as coinflip)
+        const e = cruiseProgress(t, 0.14, 0.55);
         applyX(startX + (endX - startX) * e);
         if (t < 1) {
           rafRef.current = requestAnimationFrame(tick);
@@ -317,40 +360,14 @@ export function JackpotSpinner({
           style={{
             transform: "translate3d(0,0,0)",
             transition: "none",
+            contain: "layout style paint",
           }}
         >
-          {strip.map((seg) => {
-            const isWinner =
-              (status === "spinning" || status === "settled") &&
-              seg.userId === winnerId;
-            return (
-              <div
-                key={seg.key}
-                className="relative flex shrink-0 flex-col items-center justify-center gap-1.5 border-r border-black/40 px-2"
-                style={{
-                  width: seg.width,
-                  background: `linear-gradient(180deg, ${seg.color}33 0%, rgba(12,9,7,0.92) 70%)`,
-                  boxShadow: isWinner
-                    ? `inset 0 0 0 2px ${seg.color}`
-                    : `inset 0 -3px 0 ${seg.color}`,
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={seg.avatarUrl || "/logo.svg"}
-                  alt=""
-                  className="h-12 w-12 rounded-sm border object-cover"
-                  style={{ borderColor: `${seg.color}99` }}
-                />
-                <p className="max-w-full truncate px-1 text-[11px] font-semibold text-[#efe6da]">
-                  {seg.displayName}
-                </p>
-                <p className="font-mono text-[10px] text-[#f0a060]">
-                  {(seg.pct * 100).toFixed(1)}%
-                </p>
-              </div>
-            );
-          })}
+          <StripCells
+            strip={strip}
+            winnerId={winnerId}
+            showWinner={status === "settled"}
+          />
         </div>
       </div>
 

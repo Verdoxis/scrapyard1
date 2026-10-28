@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { cruiseProgress } from "@/lib/spin-motion";
 
 export type CoinSide = "red" | "black";
 
-/** Slower, smoother flip — ~6s. */
-const FLIP_MS = 6000;
+/** Accel → readable cruise → soft land. */
+const FLIP_MS = 6200;
 
 function faceGradient(side: CoinSide) {
   return side === "red"
@@ -33,29 +34,22 @@ function faceSequence(start: CoinSide, land: CoinSide, steps: number): CoinSide[
   return seq;
 }
 
-/**
- * Steady cruise for most of the flip, then ease-out so the coin
- * visibly slows and settles on the winning face.
- */
-function flipProgress(t: number): number {
-  const CRUISE_UNTIL = 0.66;
-  const CRUISE_FRAC = 0.76;
-  if (t <= CRUISE_UNTIL) {
-    return (t / CRUISE_UNTIL) * CRUISE_FRAC;
-  }
-  const u = (t - CRUISE_UNTIL) / (1 - CRUISE_UNTIL);
-  // easeOutQuint — strong deceleration into the final side
-  const eased = 1 - Math.pow(1 - u, 5);
-  return CRUISE_FRAC + eased * (1 - CRUISE_FRAC);
-}
-
-function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
+function CoinFace({
+  side,
+  edgeOn,
+  hidden,
+}: {
+  side: CoinSide;
+  edgeOn?: boolean;
+  hidden?: boolean;
+}) {
   const isRed = side === "red";
   if (edgeOn) {
     return (
       <div
-        className="h-full w-full rounded-full"
+        className="absolute inset-0 rounded-full"
         style={{
+          display: hidden ? "none" : "block",
           background: isRed
             ? "linear-gradient(90deg, #2a0604 0%, #8b1a12 18%, #e85a45 50%, #8b1a12 82%, #2a0604 100%)"
             : "linear-gradient(90deg, #000 0%, #2a2a2a 18%, #888 50%, #2a2a2a 82%, #000 100%)",
@@ -67,8 +61,9 @@ function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-full"
+      className="absolute inset-0 overflow-hidden rounded-full"
       style={{
+        display: hidden ? "none" : "block",
         background: faceGradient(side),
         boxShadow: faceShadow(side),
       }}
@@ -132,77 +127,116 @@ export function RustCoin({
   const dim =
     size === "lg" ? "h-28 w-28" : size === "sm" ? "h-12 w-12" : "h-20 w-20";
 
-  const [face, setFace] = useState<CoinSide>(landSide ?? side);
-  const [scaleX, setScaleX] = useState(1);
-  const [lift, setLift] = useState(0);
+  const liftRef = useRef<HTMLDivElement>(null);
+  const scaleRef = useRef<HTMLDivElement>(null);
+  const redRef = useRef<HTMLDivElement>(null);
+  const blackRef = useRef<HTMLDivElement>(null);
+  const edgeRef = useRef<HTMLDivElement>(null);
   const landedRef = useRef(false);
+  const onLandRef = useRef(onLand);
+  onLandRef.current = onLand;
+
+  function showFace(face: CoinSide | "edge") {
+    if (redRef.current) redRef.current.style.display = face === "red" ? "block" : "none";
+    if (blackRef.current)
+      blackRef.current.style.display = face === "black" ? "block" : "none";
+    if (edgeRef.current)
+      edgeRef.current.style.display = face === "edge" ? "block" : "none";
+  }
+
+  // Keep static face in sync when not spinning
+  useEffect(() => {
+    if (spinning && landSide) return;
+    const face = landSide ?? side;
+    showFace(face);
+    if (liftRef.current) liftRef.current.style.transform = "translate3d(0,0,0)";
+    if (scaleRef.current) scaleRef.current.style.transform = "scaleX(1)";
+    landedRef.current = false;
+  }, [spinning, landSide, side]);
 
   useEffect(() => {
-    if (!spinning || !landSide) {
-      setFace(landSide ?? side);
-      setScaleX(1);
-      setLift(0);
-      landedRef.current = false;
-      return;
-    }
+    if (!spinning || !landSide) return;
 
     landedRef.current = false;
-    // Half-turns end on landSide; progress eases out so the last face is readable
-    const seq = faceSequence(side, landSide, 23);
+    // Enough half-turns that cruise speed stays easy to read
+    const seq = faceSequence(side, landSide, 19);
     const start = performance.now();
     let raf = 0;
+    let lastFace: CoinSide | "edge" | null = null;
 
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / FLIP_MS);
-      const p = flipProgress(t);
+      const p = cruiseProgress(t);
       const seg = p * (seq.length - 1);
       const i = Math.min(seq.length - 2, Math.floor(seg));
       const local = seg - i;
-      // Soft squash so edges don't flash harshly
       const squash = Math.sin(local * Math.PI);
-      const sx = Math.max(0.08, 1 - squash * 0.92);
+      const sx = Math.max(0.07, 1 - squash * 0.93);
+      const face: CoinSide = local < 0.5 ? seq[i] : seq[i + 1];
+      const show: CoinSide | "edge" = sx < 0.22 ? "edge" : face;
 
-      // Prefer the destination face once we're past the midpoint of a half-turn
-      setFace(local < 0.5 ? seq[i] : seq[i + 1]);
-      setScaleX(sx);
-      // Arc peaks mid-cruise, settles as the spin slows
-      setLift(Math.sin(p * Math.PI) * -28);
+      if (scaleRef.current) {
+        scaleRef.current.style.transform = `scaleX(${sx})`;
+      }
+      if (liftRef.current) {
+        const lift = Math.sin(p * Math.PI) * -26;
+        liftRef.current.style.transform = `translate3d(0,${lift}px,0)`;
+      }
+      if (show !== lastFace) {
+        lastFace = show;
+        showFace(show);
+      }
 
       if (t < 1) {
         raf = requestAnimationFrame(frame);
       } else {
-        setFace(landSide);
-        setScaleX(1);
-        setLift(0);
+        if (scaleRef.current) scaleRef.current.style.transform = "scaleX(1)";
+        if (liftRef.current)
+          liftRef.current.style.transform = "translate3d(0,0,0)";
+        showFace(landSide);
         if (!landedRef.current) {
           landedRef.current = true;
-          onLand?.();
+          onLandRef.current?.();
         }
       }
     };
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [spinning, landSide, side, onLand]);
+  }, [spinning, landSide, side]);
 
-  const edgeOn = scaleX < 0.22;
+  const initial = landSide ?? side;
 
   return (
     <div
+      ref={liftRef}
       className={cn(
         "relative flex items-center justify-center will-change-transform",
         dim,
         selected &&
           "rounded-full ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
       )}
-      aria-label={face === "red" ? "Red" : "Black"}
-      style={{ transform: `translateY(${lift}px)` }}
+      aria-label={initial === "red" ? "Red" : "Black"}
+      style={{ transform: "translate3d(0,0,0)" }}
     >
       <div
-        className="h-full w-full"
-        style={{ transform: `scaleX(${scaleX})` }}
+        ref={scaleRef}
+        className="relative h-full w-full will-change-transform"
+        style={{ transform: "scaleX(1)" }}
       >
-        <CoinFace side={face} edgeOn={edgeOn} />
+        <div ref={redRef} className="absolute inset-0" style={{ display: initial === "red" ? "block" : "none" }}>
+          <CoinFace side="red" />
+        </div>
+        <div
+          ref={blackRef}
+          className="absolute inset-0"
+          style={{ display: initial === "black" ? "block" : "none" }}
+        >
+          <CoinFace side="black" />
+        </div>
+        <div ref={edgeRef} className="absolute inset-0" style={{ display: "none" }}>
+          <CoinFace side={initial} edgeOn />
+        </div>
       </div>
     </div>
   );
