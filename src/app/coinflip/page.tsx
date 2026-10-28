@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/skins";
-import { COINFLIP_VALUE_TOLERANCE, HOUSE_RAKE_PERCENT } from "@/lib/config";
+import {
+  COINFLIP_MAX_CHANCE_DIFF_PERCENT,
+  HOUSE_RAKE_PERCENT,
+} from "@/lib/config";
 import { useApp } from "@/components/app-provider";
 import { ConnectGate } from "@/components/connect-gate";
 import { InventoryPicker } from "@/components/steam/inventory-picker";
@@ -17,11 +20,12 @@ import { WinModal, type WinPayload } from "@/components/win-modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { playCoinFlipSound, playSelectSound } from "@/lib/sfx";
+import { pickAssetIdsNearValue, selectionValue } from "@/lib/pick-skins";
 import {
-  pickAssetIdsForMultiplier,
-  pickAssetIdsNearValue,
-  selectionValue,
-} from "@/lib/pick-skins";
+  coinflipChanceDiffPercent,
+  isCoinflipStakeAllowed,
+  winChancePercent,
+} from "@/lib/coinflip-odds";
 import type { Skin } from "@/lib/skins";
 
 const FLIP_DURATION_MS = COIN_FLIP_DURATION_MS;
@@ -175,12 +179,6 @@ function CoinflipLobby() {
     [games, spinId],
   );
 
-  function applyMultiplier(m: 2 | 3 | 4) {
-    playSelectSound();
-    const ids = pickAssetIdsForMultiplier(inventory, selected, m);
-    setSelected(ids);
-  }
-
   function openJoinPicker(game: CoinGame, autoQuick = true) {
     setError(null);
     setMessage(null);
@@ -192,7 +190,7 @@ function CoinflipLobby() {
     if (ids.length === 0) {
       setSelected([]);
       setError(
-        `Pick skins within ${COINFLIP_VALUE_TOLERANCE}% of ${formatPrice(target)}. Close is fine — odds shift with the difference.`,
+        `Pick skins close to ${formatPrice(target)} so the win-chance gap stays ≤ ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}%.`,
       );
       return;
     }
@@ -204,19 +202,16 @@ function CoinflipLobby() {
     ? games.find((g) => g.id === joinTarget) ?? null
     : null;
   const joinTargetCents = joinGame ? creatorWager(joinGame) : 0;
-  const joinDiffPct =
-    joinTargetCents > 0
-      ? (Math.abs(selectedCents - joinTargetCents) / joinTargetCents) * 100
-      : 0;
+  const joinChanceGap = coinflipChanceDiffPercent(
+    joinTargetCents,
+    selectedCents,
+  );
   const joinInRange =
     Boolean(joinGame) &&
     selected.length > 0 &&
-    joinDiffPct <= COINFLIP_VALUE_TOLERANCE;
-  const joinYourChance =
-    joinTargetCents + selectedCents > 0
-      ? (selectedCents / (joinTargetCents + selectedCents)) * 100
-      : 50;
-  const joinTheirChance = 100 - joinYourChance;
+    isCoinflipStakeAllowed(joinTargetCents, selectedCents);
+  const joinYourChance = winChancePercent(selectedCents, joinTargetCents);
+  const joinTheirChance = winChancePercent(joinTargetCents, selectedCents);
 
   async function showWinIfNeeded(game: CoinGame) {
     if (game.winnerId !== user?.id || !game.resultSide) return;
@@ -503,8 +498,8 @@ function CoinflipLobby() {
                           {joining ? "Picking skins…" : "Join flip"}
                         </Button>
                         <p className="text-center text-[11px] text-[#8a7d70]">
-                          Match near {formatPrice(wager)} (±
-                          {COINFLIP_VALUE_TOLERANCE}%) — odds follow value
+                          Match near {formatPrice(wager)} · max{" "}
+                          {COINFLIP_MAX_CHANCE_DIFF_PERCENT}% win-chance gap
                         </p>
                       </>
                     )}
@@ -630,8 +625,9 @@ function CoinflipLobby() {
                 </div>
                 <SkinIconRow items={joinGame.creatorItems} size="sm" />
                 <p className="mt-2 text-[11px] text-[#8a7d70]">
-                  Pick skins within ±{COINFLIP_VALUE_TOLERANCE}% of their stake.
-                  Higher stake = higher win %.
+                  Pick skins near their stake. Win-chance gap can be at most{" "}
+                  {COINFLIP_MAX_CHANCE_DIFF_PERCENT}% — a little more value
+                  still nudges your odds up.
                 </p>
                 <Button
                   type="button"
@@ -673,28 +669,12 @@ function CoinflipLobby() {
 
             {/* Sticky action strip */}
             <div className="sticky top-0 z-10 space-y-3 rounded-sm border border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.96)] p-3 backdrop-blur">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-[#a89888]">
-                  Your stake{" "}
-                  <span className="font-mono text-[#f0a060]">
-                    {formatPrice(selectedCents)}
-                  </span>
-                </p>
-                {!joinGame && (
-                  <div className="flex gap-1">
-                    {([2, 3, 4] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => applyMultiplier(m)}
-                        className="rounded-sm border border-[rgba(240,160,96,0.35)] px-2.5 py-1 font-mono text-xs text-[#f0a060] hover:bg-[rgba(205,65,43,0.15)]"
-                      >
-                        {m}x
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <p className="text-sm text-[#a89888]">
+                Your stake{" "}
+                <span className="font-mono text-[#f0a060]">
+                  {formatPrice(selectedCents)}
+                </span>
+              </p>
 
               {joinGame && selected.length > 0 && (
                 <div className="space-y-1 rounded-sm bg-black/35 px-2.5 py-2 text-xs">
@@ -705,15 +685,17 @@ function CoinflipLobby() {
                     </span>
                   </div>
                   <div className="flex justify-between text-[#a89888]">
-                    <span>Difference</span>
+                    <span>Win-chance gap</span>
                     <span
                       className={cn(
                         "font-mono",
                         joinInRange ? "text-emerald-400" : "text-rose-400",
                       )}
                     >
-                      {joinDiffPct.toFixed(1)}%{" "}
-                      {joinInRange ? "ok" : `max ${COINFLIP_VALUE_TOLERANCE}%`}
+                      {joinChanceGap.toFixed(1)}%{" "}
+                      {joinInRange
+                        ? "ok"
+                        : `max ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}%`}
                     </span>
                   </div>
                   <div className="mt-1 flex justify-between font-semibold">
@@ -749,7 +731,7 @@ function CoinflipLobby() {
                       ? `Confirm join · ${joinYourChance.toFixed(1)}% chance`
                       : selected.length === 0
                         ? "Select skins to join"
-                        : `Stake too far (±${COINFLIP_VALUE_TOLERANCE}% needed)`}
+                        : `Chance gap over ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}%`}
                 </Button>
               ) : (
                 <Button

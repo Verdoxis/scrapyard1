@@ -92,8 +92,7 @@ export function SkinIconChip({
 
   return (
     <div
-      className="flex shrink-0 cursor-help flex-col items-center gap-1"
-      title={skin.name}
+      className="flex shrink-0 flex-col items-center gap-1"
       onPointerEnter={show}
       onPointerMove={show}
       onPointerLeave={hide}

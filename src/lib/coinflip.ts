@@ -1,5 +1,9 @@
 import { botItemsNearValue } from "./bots";
-import { COINFLIP_VALUE_TOLERANCE } from "./config";
+import { COINFLIP_MAX_CHANCE_DIFF_PERCENT } from "./config";
+import {
+  coinflipChanceDiffPercent,
+  isCoinflipStakeAllowed,
+} from "./coinflip-odds";
 import { fairFloat, generateServerSeed, hashServerSeed } from "./fairness";
 import { applyRake } from "./rake";
 import {
@@ -153,11 +157,10 @@ export function joinCoinflip(gameId: string, assetIds: string[]) {
   const joinValue = itemsValue(skins);
 
   const creatorValue = itemsValue(game.creatorItems);
-  const diff =
-    (Math.abs(joinValue - creatorValue) / Math.max(creatorValue, 1)) * 100;
-  if (diff > COINFLIP_VALUE_TOLERANCE) {
+  if (!isCoinflipStakeAllowed(creatorValue, joinValue)) {
+    const gap = coinflipChanceDiffPercent(creatorValue, joinValue).toFixed(1);
     throw new Error(
-      `Join value must be within ${COINFLIP_VALUE_TOLERANCE}% of $${(creatorValue / 100).toFixed(2)} (yours: $${(joinValue / 100).toFixed(2)}).`,
+      `Stakes too far apart — win-chance gap would be ${gap}% (max ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}%). Theirs $${(creatorValue / 100).toFixed(2)}, yours $${(joinValue / 100).toFixed(2)}.`,
     );
   }
 
