@@ -33,6 +33,22 @@ function faceSequence(start: CoinSide, land: CoinSide, steps: number): CoinSide[
   return seq;
 }
 
+/**
+ * Steady cruise for most of the flip, then ease-out so the coin
+ * visibly slows and settles on the winning face.
+ */
+function flipProgress(t: number): number {
+  const CRUISE_UNTIL = 0.66;
+  const CRUISE_FRAC = 0.76;
+  if (t <= CRUISE_UNTIL) {
+    return (t / CRUISE_UNTIL) * CRUISE_FRAC;
+  }
+  const u = (t - CRUISE_UNTIL) / (1 - CRUISE_UNTIL);
+  // easeOutQuint — strong deceleration into the final side
+  const eased = 1 - Math.pow(1 - u, 5);
+  return CRUISE_FRAC + eased * (1 - CRUISE_FRAC);
+}
+
 function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
   const isRed = side === "red";
   if (edgeOn) {
@@ -131,24 +147,26 @@ export function RustCoin({
     }
 
     landedRef.current = false;
-    // Even half-turns at a constant rate across the full duration
-    const seq = faceSequence(side, landSide, 21);
+    // Half-turns end on landSide; progress eases out so the last face is readable
+    const seq = faceSequence(side, landSide, 23);
     const start = performance.now();
     let raf = 0;
 
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / FLIP_MS);
-      // Linear progress → consistent flip speed (no ease ramp)
-      const seg = t * (seq.length - 1);
+      const p = flipProgress(t);
+      const seg = p * (seq.length - 1);
       const i = Math.min(seq.length - 2, Math.floor(seg));
       const local = seg - i;
       // Soft squash so edges don't flash harshly
       const squash = Math.sin(local * Math.PI);
       const sx = Math.max(0.08, 1 - squash * 0.92);
 
+      // Prefer the destination face once we're past the midpoint of a half-turn
       setFace(local < 0.5 ? seq[i] : seq[i + 1]);
       setScaleX(sx);
-      setLift(Math.sin(t * Math.PI) * -28);
+      // Arc peaks mid-cruise, settles as the spin slows
+      setLift(Math.sin(p * Math.PI) * -28);
 
       if (t < 1) {
         raf = requestAnimationFrame(frame);
