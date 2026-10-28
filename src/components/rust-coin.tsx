@@ -9,14 +9,14 @@ const FLIP_MS = 3200;
 
 function faceGradient(side: CoinSide) {
   return side === "red"
-    ? "radial-gradient(circle at 35% 30%, #e85a45, #8b1a12 55%, #3a0808)"
-    : "radial-gradient(circle at 35% 30%, #4a4a4a, #141414 55%, #050505)";
+    ? "radial-gradient(circle at 32% 28%, #ff7a5c 0%, #e85a45 22%, #9b1c12 58%, #3a0808 100%)"
+    : "radial-gradient(circle at 32% 28%, #6a6a6a 0%, #3a3a3a 28%, #161616 62%, #050505 100%)";
 }
 
 function faceShadow(side: CoinSide) {
   return side === "red"
-    ? "inset 0 0 0 3px rgba(255,180,140,0.28), 0 8px 20px rgba(140,20,10,0.45)"
-    : "inset 0 0 0 3px rgba(200,200,200,0.22), 0 8px 20px rgba(0,0,0,0.55)";
+    ? "inset 0 0 0 2px rgba(255,200,160,0.35), inset 0 -10px 18px rgba(60,0,0,0.45), inset 0 8px 14px rgba(255,180,140,0.18), 0 10px 22px rgba(120,15,8,0.55)"
+    : "inset 0 0 0 2px rgba(220,220,220,0.28), inset 0 -10px 18px rgba(0,0,0,0.65), inset 0 8px 14px rgba(255,255,255,0.08), 0 10px 22px rgba(0,0,0,0.65)";
 }
 
 /** Build alternating faces that end on `land`. */
@@ -26,11 +26,79 @@ function faceSequence(start: CoinSide, land: CoinSide, steps: number): CoinSide[
   for (let i = steps - 2; i >= 0; i--) {
     seq[i] = seq[i + 1] === "red" ? "black" : "red";
   }
-  // Prefer starting on `start` when possible by adding one step
   if (seq[0] !== start) {
     return [start, ...seq];
   }
   return seq;
+}
+
+function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
+  const isRed = side === "red";
+  if (edgeOn) {
+    return (
+      <div
+        className="h-full w-full rounded-full"
+        style={{
+          background: isRed
+            ? "linear-gradient(90deg, #2a0604 0%, #8b1a12 18%, #e85a45 50%, #8b1a12 82%, #2a0604 100%)"
+            : "linear-gradient(90deg, #000 0%, #2a2a2a 18%, #888 50%, #2a2a2a 82%, #000 100%)",
+          boxShadow: "0 8px 18px rgba(0,0,0,0.5)",
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="relative h-full w-full overflow-hidden rounded-full"
+      style={{
+        background: faceGradient(side),
+        boxShadow: faceShadow(side),
+      }}
+    >
+      {/* Outer rim */}
+      <span
+        className="pointer-events-none absolute inset-[5%] rounded-full border"
+        style={{
+          borderColor: isRed
+            ? "rgba(255,170,130,0.45)"
+            : "rgba(230,230,230,0.28)",
+          boxShadow: isRed
+            ? "inset 0 0 0 1px rgba(80,10,5,0.5)"
+            : "inset 0 0 0 1px rgba(0,0,0,0.55)",
+        }}
+      />
+      {/* Inner ring */}
+      <span
+        className="pointer-events-none absolute inset-[18%] rounded-full border"
+        style={{
+          borderColor: isRed
+            ? "rgba(255,140,100,0.28)"
+            : "rgba(200,200,200,0.16)",
+        }}
+      />
+      {/* Center disc */}
+      <span
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[34%] w-[34%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background: isRed
+            ? "radial-gradient(circle at 35% 30%, #ff8a6a, #7a120c 70%)"
+            : "radial-gradient(circle at 35% 30%, #555, #0c0c0c 70%)",
+          boxShadow: isRed
+            ? "inset 0 1px 2px rgba(255,200,160,0.4), 0 0 0 1px rgba(255,160,120,0.25)"
+            : "inset 0 1px 2px rgba(255,255,255,0.15), 0 0 0 1px rgba(180,180,180,0.2)",
+        }}
+      />
+      {/* Specular highlight */}
+      <span
+        className="pointer-events-none absolute left-[18%] top-[14%] h-[22%] w-[38%] rounded-full opacity-50"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, rgba(255,255,255,0.55), transparent 70%)",
+        }}
+      />
+    </div>
+  );
 }
 
 export function RustCoin({
@@ -67,7 +135,6 @@ export function RustCoin({
 
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / FLIP_MS);
-      // Slow into the landing
       const e = 1 - Math.pow(1 - t, 2.6);
       const seg = e * (seq.length - 1);
       const i = Math.min(seq.length - 2, Math.floor(seg));
@@ -80,7 +147,6 @@ export function RustCoin({
         setFace(seq[i + 1]);
         setScaleX(Math.max(0.06, (local - 0.5) * 2));
       }
-      // Arc up then down
       setLift(Math.sin(t * Math.PI) * -22);
 
       if (t < 1) {
@@ -103,35 +169,17 @@ export function RustCoin({
       className={cn(
         "relative flex items-center justify-center",
         dim,
-        selected && "rounded-full ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
+        selected &&
+          "rounded-full ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
       )}
       aria-label={face === "red" ? "Red" : "Black"}
       style={{ transform: `translateY(${lift}px)` }}
     >
       <div
-        className="h-full w-full rounded-full"
-        style={{
-          transform: `scaleX(${scaleX})`,
-          background: edgeOn
-            ? face === "red"
-              ? "linear-gradient(90deg, #5a1008, #e85a45, #5a1008)"
-              : "linear-gradient(90deg, #050505, #666, #050505)"
-            : faceGradient(face),
-          boxShadow: faceShadow(face),
-          transition: spinning ? undefined : "background 0.15s linear",
-        }}
+        className="h-full w-full"
+        style={{ transform: `scaleX(${scaleX})` }}
       >
-        {!edgeOn && (
-          <span
-            className="pointer-events-none absolute inset-2 rounded-full border"
-            style={{
-              borderColor:
-                face === "red"
-                  ? "rgba(255,120,80,0.35)"
-                  : "rgba(255,255,255,0.14)",
-            }}
-          />
-        )}
+        <CoinFace side={face} edgeOn={edgeOn} />
       </div>
     </div>
   );

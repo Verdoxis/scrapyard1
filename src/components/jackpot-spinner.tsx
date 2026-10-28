@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, useAnimation } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface SpinnerDeposit {
@@ -13,8 +12,8 @@ export interface SpinnerDeposit {
 
 const PX_PER_PERCENT = 14;
 const MIN_SEG_PX = 72;
-const CYCLES = 9;
-const LAND_CYCLE = 7;
+const CYCLES = 10;
+const LAND_CYCLE = 8;
 
 const PLAYER_COLORS = [
   "#cd412b",
@@ -71,6 +70,10 @@ function ticketOffset(
   return 0;
 }
 
+function easeOutQuint(t: number) {
+  return 1 - Math.pow(1 - t, 5);
+}
+
 export function JackpotSpinner({
   deposits,
   totalValue,
@@ -89,9 +92,12 @@ export function JackpotSpinner({
   className?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const controls = useAnimation();
+  const stripRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(640);
+  const offsetRef = useRef(0);
+  const rafRef = useRef(0);
   const spunFor = useRef<string | null>(null);
+  const modeRef = useRef<"idle" | "spin" | "hold">("idle");
 
   const segments = useMemo(
     () => buildSegments(deposits, totalValue),
@@ -111,6 +117,13 @@ export function JackpotSpinner({
     return out;
   }, [segments]);
 
+  function applyX(x: number) {
+    offsetRef.current = x;
+    if (stripRef.current) {
+      stripRef.current.style.transform = `translate3d(${x}px,0,0)`;
+    }
+  }
+
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
@@ -122,8 +135,9 @@ export function JackpotSpinner({
   }, []);
 
   useEffect(() => {
+    cancelAnimationFrame(rafRef.current);
     if (segments.length === 0) {
-      void controls.set({ x: 0 });
+      applyX(0);
       return;
     }
 
@@ -133,41 +147,59 @@ export function JackpotSpinner({
 
     if (spinning && spunFor.current !== spinKey) {
       spunFor.current = spinKey;
+      modeRef.current = "spin";
       const targetInCycle = ticketOffset(segments, winningTicket!);
       const absolute = LAND_CYCLE * cycleWidth + targetInCycle;
       const endX = viewport / 2 - absolute;
-      const remaining = Math.max(
-        1200,
+      // Start a couple cycles ahead of the land for a long smooth roll
+      const startX = viewport / 2 - (2 * cycleWidth + targetInCycle);
+      applyX(startX);
+      const duration = Math.max(
+        2800,
         (spinEndsAt ?? Date.now() + 7800) - Date.now(),
       );
+      const t0 = performance.now();
 
-      void controls.set({ x: viewport / 2 - targetInCycle });
-      void controls.start({
-        x: endX,
-        transition: {
-          duration: remaining / 1000,
-          ease: [0.12, 0.75, 0.08, 1],
-        },
-      });
-      return;
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - t0) / duration);
+        const e = easeOutQuint(t);
+        applyX(startX + (endX - startX) * e);
+        if (t < 1) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          modeRef.current = "hold";
+          applyX(endX);
+        }
+      };
+      rafRef.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(rafRef.current);
     }
 
-    if (settled) {
-      const targetInCycle = ticketOffset(segments, winningTicket!);
+    if (settled || modeRef.current === "hold") {
+      modeRef.current = "hold";
+      const targetInCycle = ticketOffset(segments, winningTicket ?? 0.5);
       const absolute = LAND_CYCLE * cycleWidth + targetInCycle;
-      void controls.set({ x: viewport / 2 - absolute });
+      applyX(viewport / 2 - absolute);
       return;
     }
 
-    // Idle preview — keep a gentle drift so the line feels alive
-    void controls.start({
-      x: [0, -cycleWidth],
-      transition: {
-        duration: Math.max(18, cycleWidth / 40),
-        ease: "linear",
-        repeat: Infinity,
-      },
-    });
+    // Seamless idle crawl — wrap within one cycle width
+    modeRef.current = "idle";
+    let last = performance.now();
+    const speed = Math.max(28, cycleWidth / 22); // px/sec
+
+    const tick = (now: number) => {
+      if (modeRef.current !== "idle") return;
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      let x = offsetRef.current - speed * dt;
+      // Keep translate in a stable band so the strip never jumps
+      while (x <= -cycleWidth) x += cycleWidth;
+      applyX(x);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
   }, [
     status,
     winningTicket,
@@ -176,7 +208,6 @@ export function JackpotSpinner({
     segments,
     cycleWidth,
     viewport,
-    controls,
   ]);
 
   if (deposits.length === 0) {
@@ -224,19 +255,18 @@ export function JackpotSpinner({
             "inset 0 0 40px rgba(0,0,0,0.65), 0 0 0 1px rgba(240,160,96,0.08)",
         }}
       >
-        {/* Center marker */}
         <div className="pointer-events-none absolute inset-y-0 left-1/2 z-20 w-0.5 -translate-x-1/2 bg-[#f0a060]">
           <div className="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-x-[8px] border-b-[12px] border-x-transparent border-b-[#f0a060]" />
           <div className="absolute bottom-0 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[8px] border-t-[12px] border-x-transparent border-t-[#f0a060]" />
         </div>
 
-        {/* Edge fades */}
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-[rgba(8,6,5,0.95)] to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-[rgba(8,6,5,0.95)] to-transparent" />
 
-        <motion.div
-          className="flex h-[118px] w-max items-stretch"
-          animate={controls}
+        <div
+          ref={stripRef}
+          className="flex h-[118px] w-max items-stretch will-change-transform"
+          style={{ transform: "translate3d(0,0,0)" }}
         >
           {strip.map((seg) => {
             const isWinner =
@@ -270,10 +300,9 @@ export function JackpotSpinner({
               </div>
             );
           })}
-        </motion.div>
+        </div>
       </div>
 
-      {/* Odds legend */}
       <div className="flex flex-wrap gap-2">
         {segments.map((seg) => (
           <div
