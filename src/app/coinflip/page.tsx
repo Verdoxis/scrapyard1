@@ -107,8 +107,9 @@ export default function CoinflipPage() {
         Coinflip
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-[#a89888]">
-        Jump into open lobbies — or open Create Flip to build your own. Winner
-        gets a Steam trade link to claim the pot.
+        Join open lobbies by picking skins near their stake — it doesn&apos;t
+        have to be exact; the difference shifts your win %. Create your own from
+        the side panel. Winner gets a Steam trade link to claim.
       </p>
       <div className="mt-8">
         <ConnectGate>
@@ -180,24 +181,42 @@ function CoinflipLobby() {
     setSelected(ids);
   }
 
-  function quickMatch(game: CoinGame) {
-    playSelectSound();
+  function openJoinPicker(game: CoinGame, autoQuick = true) {
+    setError(null);
+    setMessage(null);
+    setJoinTarget(game.id);
+    setDrawerOpen(true);
+    if (!autoQuick) return;
     const target = creatorWager(game);
     const ids = pickAssetIdsNearValue(inventory, target);
-    setSelected(ids);
-    setJoinTarget(game.id);
     if (ids.length === 0) {
+      setSelected([]);
       setError(
-        `Need skins within ${COINFLIP_VALUE_TOLERANCE}% of ${formatPrice(target)}. Restock on Connect if you're low.`,
+        `Pick skins within ${COINFLIP_VALUE_TOLERANCE}% of ${formatPrice(target)}. Close is fine — odds shift with the difference.`,
       );
-      setDrawerOpen(true);
       return;
     }
-    setError(null);
-    setMessage(
-      `Quick-selected ${ids.length} skin(s) · ${formatPrice(selectionValue(inventory, ids))} to match ${formatPrice(target)}`,
-    );
+    playSelectSound();
+    setSelected(ids);
   }
+
+  const joinGame = joinTarget
+    ? games.find((g) => g.id === joinTarget) ?? null
+    : null;
+  const joinTargetCents = joinGame ? creatorWager(joinGame) : 0;
+  const joinDiffPct =
+    joinTargetCents > 0
+      ? (Math.abs(selectedCents - joinTargetCents) / joinTargetCents) * 100
+      : 0;
+  const joinInRange =
+    Boolean(joinGame) &&
+    selected.length > 0 &&
+    joinDiffPct <= COINFLIP_VALUE_TOLERANCE;
+  const joinYourChance =
+    joinTargetCents + selectedCents > 0
+      ? (selectedCents / (joinTargetCents + selectedCents)) * 100
+      : 50;
+  const joinTheirChance = 100 - joinYourChance;
 
   async function showWinIfNeeded(game: CoinGame) {
     if (game.winnerId !== user?.id || !game.resultSide) return;
@@ -292,6 +311,7 @@ function CoinflipLobby() {
       setSpinLand(land);
       setSelected([]);
       setJoinTarget(null);
+      setDrawerOpen(false);
       setGames((prev) =>
         prev.map((g) =>
           g.id === gameId ? { ...g, ...data.game, status: "flipping" } : g,
@@ -362,11 +382,15 @@ function CoinflipLobby() {
             Open flips
           </h2>
           <p className="text-sm text-[#a89888]">
-            Bigger pots first — join with a matching stake.
+            Join with a close stake — exact match not required. Putting in more
+            raises your win chance.
           </p>
         </div>
         <Button
-          onClick={() => setDrawerOpen(true)}
+          onClick={() => {
+            setJoinTarget(null);
+            setDrawerOpen(true);
+          }}
           className="h-11 bg-[#cd412b] px-5 text-[#140c08] hover:bg-[#e25a3c]"
         >
           Create your flip
@@ -400,7 +424,6 @@ function CoinflipLobby() {
             const wager = creatorWager(g);
             const mine = g.creatorId === user?.id;
             const joining = joinTarget === g.id;
-            const matchIds = pickAssetIdsNearValue(inventory, wager);
             const canJoin =
               g.status === "open" && !mine && !isBotCreator(user?.id ?? "");
             const spinning = spinId === g.id;
@@ -474,33 +497,15 @@ function CoinflipLobby() {
                       <>
                         <Button
                           disabled={busy || spinning}
-                          onClick={() => {
-                            quickMatch(g);
-                            void join(g.id, matchIds);
-                          }}
+                          onClick={() => openJoinPicker(g, true)}
                           className="h-12 bg-[#cd412b] text-base text-[#140c08] hover:bg-[#e25a3c]"
                         >
-                          {busy && joinTarget === g.id
-                            ? "Joining…"
-                            : "Join flip"}
+                          {joining ? "Picking skins…" : "Join flip"}
                         </Button>
-                        <Button
-                          variant="outline"
-                          disabled={busy || spinning}
-                          onClick={() => {
-                            quickMatch(g);
-                            setDrawerOpen(true);
-                          }}
-                          className="border-[rgba(240,160,96,0.4)] text-[#f0a060] hover:bg-[rgba(205,65,43,0.12)]"
-                        >
-                          Quick select {formatPrice(wager)}
-                        </Button>
-                        {joining && selected.length > 0 && (
-                          <p className="text-center text-[11px] text-[#a89888]">
-                            Matched {formatPrice(selectedCents)} · tap Join
-                            again if needed
-                          </p>
-                        )}
+                        <p className="text-center text-[11px] text-[#8a7d70]">
+                          Match near {formatPrice(wager)} (±
+                          {COINFLIP_VALUE_TOLERANCE}%) — odds follow value
+                        </p>
                       </>
                     )}
 
@@ -592,15 +597,18 @@ function CoinflipLobby() {
           <div className="flex items-center justify-between border-b border-[rgba(205,65,43,0.25)] px-5 py-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.24em] text-[#cd412b]">
-                New lobby
+                {joinGame ? "Join lobby" : "New lobby"}
               </p>
               <h3 className="font-display text-2xl text-[#efe6da]">
-                Create flip
+                {joinGame ? `Join ${joinGame.creatorName}` : "Create flip"}
               </h3>
             </div>
             <button
               type="button"
-              onClick={() => setDrawerOpen(false)}
+              onClick={() => {
+                setDrawerOpen(false);
+                setJoinTarget(null);
+              }}
               className="text-sm text-[#a89888] hover:text-[#efe6da]"
             >
               Close
@@ -608,69 +616,148 @@ function CoinflipLobby() {
           </div>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            <div>
-              <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
-                Call a side
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {(["red", "black"] as const).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setSide(s)}
-                    className={cn(
-                      "flex flex-col items-center gap-2 rounded-sm border p-3",
-                      side === s
-                        ? "border-[#f0a060] bg-[rgba(205,65,43,0.12)]"
-                        : "border-[rgba(255,255,255,0.08)] bg-black/30",
-                    )}
-                  >
-                    <RustCoin side={s} selected={side === s} size="sm" />
-                    <span className="font-display text-lg tracking-wider text-[#efe6da]">
-                      {s.toUpperCase()}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Sticky-ish action strip inside drawer */}
-            <div className="sticky top-0 z-10 space-y-3 rounded-sm border border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.96)] p-3 backdrop-blur">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-[#a89888]">
-                  Stake{" "}
-                  <span className="font-mono text-[#f0a060]">
-                    {formatPrice(selectedCents)}
-                  </span>
+            {joinGame ? (
+              <div className="rounded-sm border border-[rgba(205,65,43,0.3)] bg-black/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <PlayerChip
+                    name={joinGame.creatorName}
+                    avatar={joinGame.creatorAvatar}
+                    side={joinGame.creatorSide}
+                  />
+                  <p className="font-mono text-[#f0a060]">
+                    {formatPrice(joinTargetCents)}
+                  </p>
+                </div>
+                <SkinIconRow items={joinGame.creatorItems} size="sm" />
+                <p className="mt-2 text-[11px] text-[#8a7d70]">
+                  Pick skins within ±{COINFLIP_VALUE_TOLERANCE}% of their stake.
+                  Higher stake = higher win %.
                 </p>
-                <div className="flex gap-1">
-                  {([2, 3, 4] as const).map((m) => (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 border-[rgba(240,160,96,0.4)] text-[#f0a060]"
+                  onClick={() => openJoinPicker(joinGame, true)}
+                >
+                  Quick select near {formatPrice(joinTargetCents)}
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
+                  Call a side
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["red", "black"] as const).map((s) => (
                     <button
-                      key={m}
+                      key={s}
                       type="button"
-                      onClick={() => applyMultiplier(m)}
-                      className="rounded-sm border border-[rgba(240,160,96,0.35)] px-2.5 py-1 font-mono text-xs text-[#f0a060] hover:bg-[rgba(205,65,43,0.15)]"
+                      onClick={() => setSide(s)}
+                      className={cn(
+                        "flex flex-col items-center gap-2 rounded-sm border p-3",
+                        side === s
+                          ? "border-[#f0a060] bg-[rgba(205,65,43,0.12)]"
+                          : "border-[rgba(255,255,255,0.08)] bg-black/30",
+                      )}
                     >
-                      {m}x
+                      <RustCoin side={s} selected={side === s} size="sm" />
+                      <span className="font-display text-lg tracking-wider text-[#efe6da]">
+                        {s.toUpperCase()}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
-              <Button
-                disabled={busy || selected.length === 0}
-                onClick={() => void create()}
-                className="h-11 w-full bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
-              >
-                {busy ? "Working…" : "Send bot trade & create lobby"}
-              </Button>
-              {joinTarget && selected.length > 0 && (
+            )}
+
+            {/* Sticky action strip */}
+            <div className="sticky top-0 z-10 space-y-3 rounded-sm border border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.96)] p-3 backdrop-blur">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-[#a89888]">
+                  Your stake{" "}
+                  <span className="font-mono text-[#f0a060]">
+                    {formatPrice(selectedCents)}
+                  </span>
+                </p>
+                {!joinGame && (
+                  <div className="flex gap-1">
+                    {([2, 3, 4] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => applyMultiplier(m)}
+                        className="rounded-sm border border-[rgba(240,160,96,0.35)] px-2.5 py-1 font-mono text-xs text-[#f0a060] hover:bg-[rgba(205,65,43,0.15)]"
+                      >
+                        {m}x
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {joinGame && selected.length > 0 && (
+                <div className="space-y-1 rounded-sm bg-black/35 px-2.5 py-2 text-xs">
+                  <div className="flex justify-between text-[#a89888]">
+                    <span>Their stake</span>
+                    <span className="font-mono text-[#efe6da]">
+                      {formatPrice(joinTargetCents)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[#a89888]">
+                    <span>Difference</span>
+                    <span
+                      className={cn(
+                        "font-mono",
+                        joinInRange ? "text-emerald-400" : "text-rose-400",
+                      )}
+                    >
+                      {joinDiffPct.toFixed(1)}%{" "}
+                      {joinInRange ? "ok" : `max ${COINFLIP_VALUE_TOLERANCE}%`}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex justify-between font-semibold">
+                    <span className="text-[#efe6da]">Your win chance</span>
+                    <span className="font-mono text-[#f0a060]">
+                      {joinYourChance.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[#a89888]">
+                    <span>Their win chance</span>
+                    <span className="font-mono">
+                      {joinTheirChance.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/50">
+                    <div
+                      className="h-full bg-[#cd412b]"
+                      style={{ width: `${joinYourChance}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {joinGame ? (
                 <Button
-                  disabled={busy}
-                  onClick={() => void join(joinTarget)}
-                  variant="outline"
-                  className="h-10 w-full border-[rgba(240,160,96,0.45)] text-[#f0a060]"
+                  disabled={busy || !joinInRange}
+                  onClick={() => void join(joinGame.id, selected)}
+                  className="h-11 w-full bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
                 >
-                  Join selected lobby with these skins
+                  {busy
+                    ? "Joining…"
+                    : joinInRange
+                      ? `Confirm join · ${joinYourChance.toFixed(1)}% chance`
+                      : selected.length === 0
+                        ? "Select skins to join"
+                        : `Stake too far (±${COINFLIP_VALUE_TOLERANCE}% needed)`}
+                </Button>
+              ) : (
+                <Button
+                  disabled={busy || selected.length === 0}
+                  onClick={() => void create()}
+                  className="h-11 w-full bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
+                >
+                  {busy ? "Working…" : "Send bot trade & create lobby"}
                 </Button>
               )}
             </div>

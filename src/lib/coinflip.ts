@@ -269,10 +269,17 @@ function settleCoinflip(game: CoinflipGame) {
   game.status = "flipping";
   const roll = fairFloat(seed, game.clientSeed, nonce);
 
-  const resultSide: CoinSide = roll < 0.5 ? "red" : "black";
+  // Odds scale with stake — putting in more raises your chance to win
+  const creatorWager = itemsValue(game.creatorItems);
+  const joinerWager = itemsValue(game.joinerItems);
+  const stakeTotal = Math.max(1, creatorWager + joinerWager);
+  const creatorChance = creatorWager / stakeTotal;
+  const creatorWins = roll < creatorChance;
+  const resultSide: CoinSide = creatorWins
+    ? game.creatorSide
+    : (game.joinerSide ?? opposite(game.creatorSide));
   game.resultSide = resultSide;
-  game.winnerId =
-    resultSide === game.creatorSide ? game.creatorId : game.joinerId;
+  game.winnerId = creatorWins ? game.creatorId : game.joinerId;
   game.serverSeed = seed;
   game.nonce = nonce;
 
@@ -300,8 +307,6 @@ function settleCoinflip(game: CoinflipGame) {
     addHouseItems(houseItems, rakeValue);
   }
 
-  const creatorWager = itemsValue(game.creatorItems);
-  const joinerWager = itemsValue(game.joinerItems);
   const payoutValue = itemsValue(winnerItems);
 
   if (!isBotId(game.creatorId)) {
