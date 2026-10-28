@@ -58,7 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </p>
               <p className="mt-3">
                 <a
-                  href="https://discord.gg/YU99W9nF5G"
+                  href="https://discord.gg/YwMWKvHt6Y"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-[#a89888] transition hover:text-[#f0a060]"

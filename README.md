@@ -2,7 +2,7 @@
 
 Rust-themed skin coinflip & jackpot. Connect Steam, stake skins, verify every roll on **Fair & Terms**. House cut is a small item when one fits (~5%); tiny pots often have no cut.
 
-Discord support: https://discord.gg/YU99W9nF5G
+Discord support: https://discord.gg/YwMWKvHt6Y
 
 ## Quick start (works today)
 
