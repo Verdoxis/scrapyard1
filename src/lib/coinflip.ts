@@ -5,12 +5,14 @@ import { applyRake } from "./rake";
 import { createGambleTrade, findAcceptedTrade, tickUserTrades } from "./steam-bot";
 import {
   addHouseItems,
+  assertNotSelfBanned,
   getCoinflip,
   getCoinflips,
   getUser,
   itemsValue,
   nanoid,
   publicCoinflip,
+  recordGameResult,
   saveCoinflip,
   saveUser,
   type CoinSide,
@@ -22,6 +24,7 @@ function requireSteam(user: UserState) {
   if (!user.steamConnected) {
     throw new Error("Connect Steam first — paste your trade URL on the Connect page.");
   }
+  assertNotSelfBanned(user);
 }
 
 function opposite(side: CoinSide): CoinSide {
@@ -202,6 +205,25 @@ function settleCoinflip(game: CoinflipGame) {
     winner.siteInventory.push(...winnerItems);
     saveUser(winner);
     addHouseItems(houseItems, rakeValue);
+  }
+
+  const creatorWager = itemsValue(game.creatorItems);
+  const joinerWager = itemsValue(game.joinerItems);
+  const payoutValue = itemsValue(winnerItems);
+
+  recordGameResult(creator, {
+    game: "coinflip",
+    wagered: creatorWager,
+    payout: game.winnerId === creator.id ? payoutValue : 0,
+    won: game.winnerId === creator.id,
+  });
+  if (game.joinerId && game.joinerId !== "house-bot") {
+    recordGameResult(getUser(game.joinerId), {
+      game: "coinflip",
+      wagered: joinerWager,
+      payout: game.winnerId === game.joinerId ? payoutValue : 0,
+      won: game.winnerId === game.joinerId,
+    });
   }
 
   game.status = "settled";

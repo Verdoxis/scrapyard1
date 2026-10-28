@@ -20,6 +20,18 @@ export interface EnrichedSkinItem {
   skin: Skin;
 }
 
+export interface UserStats {
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  totalWagered: number;
+  totalWon: number;
+  totalLost: number;
+  coinflipsPlayed: number;
+  jackpotsPlayed: number;
+  biggestWin: number;
+}
+
 export interface PublicUser {
   id: string;
   displayName: string;
@@ -43,6 +55,10 @@ export interface PublicUser {
     createdAt: number;
     items: Array<{ skinId: string; assetId: string }>;
   }>;
+  stats: UserStats;
+  selfBanUntil: number | null;
+  selfBanned: boolean;
+  joinedAt: number;
 }
 
 interface BotInfo {

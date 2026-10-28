@@ -92,6 +92,18 @@ export interface JackpotRound {
   settledAt?: number;
 }
 
+export interface UserStats {
+  gamesPlayed: number;
+  gamesWon: number;
+  gamesLost: number;
+  totalWagered: number;
+  totalWon: number;
+  totalLost: number;
+  coinflipsPlayed: number;
+  jackpotsPlayed: number;
+  biggestWin: number;
+}
+
 export interface UserState {
   id: string;
   displayName: string;
@@ -109,6 +121,10 @@ export interface UserState {
   nonce: number;
   trades: TradeOffer[];
   houseEarnings: number;
+  stats: UserStats;
+  /** Unix ms; if set and in the future, gambling is blocked */
+  selfBanUntil: number | null;
+  joinedAt: number;
 }
 
 interface GlobalState {
@@ -119,11 +135,11 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV4?: GlobalState };
+const g = globalThis as unknown as { __scrapyardV5?: GlobalState };
 
 function state(): GlobalState {
-  if (!g.__scrapyardV4) {
-    g.__scrapyardV4 = {
+  if (!g.__scrapyardV5) {
+    g.__scrapyardV5 = {
       users: new Map(),
       coinflips: new Map(),
       jackpot: null,
@@ -131,7 +147,21 @@ function state(): GlobalState {
       houseEarnings: 0,
     };
   }
-  return g.__scrapyardV4;
+  return g.__scrapyardV5;
+}
+
+export function emptyStats(): UserStats {
+  return {
+    gamesPlayed: 0,
+    gamesWon: 0,
+    gamesLost: 0,
+    totalWagered: 0,
+    totalWon: 0,
+    totalLost: 0,
+    coinflipsPlayed: 0,
+    jackpotsPlayed: 0,
+    biggestWin: 0,
+  };
 }
 
 export const DEMO_USER_ID = "demo-survivor";
@@ -162,7 +192,59 @@ function freshUser(id: string): UserState {
     nonce: 0,
     trades: [],
     houseEarnings: 0,
+    stats: emptyStats(),
+    selfBanUntil: null,
+    joinedAt: Date.now(),
   };
+}
+
+export function isSelfBanned(user: UserState): boolean {
+  return Boolean(user.selfBanUntil && user.selfBanUntil > Date.now());
+}
+
+export function assertNotSelfBanned(user: UserState) {
+  if (isSelfBanned(user)) {
+    const until = new Date(user.selfBanUntil!).toLocaleString();
+    throw new Error(`Self-ban active until ${until}. Gambling is locked.`);
+  }
+}
+
+export function recordGameResult(
+  user: UserState,
+  opts: {
+    game: "coinflip" | "jackpot";
+    wagered: number;
+    payout: number;
+    won: boolean;
+  },
+) {
+  const s = user.stats ?? emptyStats();
+  s.gamesPlayed += 1;
+  s.totalWagered += opts.wagered;
+  if (opts.game === "coinflip") s.coinflipsPlayed += 1;
+  if (opts.game === "jackpot") s.jackpotsPlayed += 1;
+  if (opts.won) {
+    s.gamesWon += 1;
+    const profit = Math.max(0, opts.payout - opts.wagered);
+    s.totalWon += opts.payout;
+    s.biggestWin = Math.max(s.biggestWin, opts.payout);
+    if (profit > 0) {
+      /* tracked via totalWon */
+    }
+  } else {
+    s.gamesLost += 1;
+    s.totalLost += opts.wagered;
+  }
+  user.stats = s;
+  saveUser(user);
+}
+
+export function applySelfBan(user: UserState, durationMs: number) {
+  if (durationMs <= 0) throw new Error("Invalid ban duration.");
+  const until = Date.now() + durationMs;
+  user.selfBanUntil = Math.max(user.selfBanUntil ?? 0, until);
+  saveUser(user);
+  return user.selfBanUntil;
 }
 
 export function getUser(id = DEMO_USER_ID): UserState {
@@ -288,6 +370,7 @@ export function addHouseItems(items: EscrowItem[], value: number) {
 }
 
 export function publicUser(user: UserState) {
+  const banned = isSelfBanned(user);
   return {
     id: user.id,
     displayName: user.displayName,
@@ -302,6 +385,10 @@ export function publicUser(user: UserState) {
     serverSeedHash: user.serverSeedHash,
     nonce: user.nonce,
     trades: user.trades.slice(0, 25),
+    stats: user.stats ?? emptyStats(),
+    selfBanUntil: user.selfBanUntil,
+    selfBanned: banned,
+    joinedAt: user.joinedAt ?? Date.now(),
   };
 }
 

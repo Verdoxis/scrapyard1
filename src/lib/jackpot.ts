@@ -4,10 +4,12 @@ import { applyRake } from "./rake";
 import { createGambleTrade, tickUserTrades } from "./steam-bot";
 import {
   addHouseItems,
+  assertNotSelfBanned,
   getJackpot,
   getUser,
   itemsValue,
   publicJackpot,
+  recordGameResult,
   rotateJackpotIfNeeded,
   saveJackpot,
   saveUser,
@@ -20,6 +22,7 @@ function requireSteam(user: UserState) {
   if (!user.steamConnected) {
     throw new Error("Connect Steam first — paste your trade URL on the Connect page.");
   }
+  assertNotSelfBanned(user);
 }
 
 export function getPublicJackpot() {
@@ -182,6 +185,7 @@ function settleJackpot(round: JackpotRound) {
   round.winnerItems = winnerItems;
   round.houseItems = houseItems;
 
+  const payoutValue = itemsValue(winnerItems);
   if (winner.userId.startsWith("bot-") || winner.userId === "house-bot") {
     addHouseItems([...winnerItems, ...houseItems], totalValue);
   } else {
@@ -189,6 +193,16 @@ function settleJackpot(round: JackpotRound) {
     winnerUser.siteInventory.push(...winnerItems);
     saveUser(winnerUser);
     addHouseItems(houseItems, rakeValue);
+  }
+
+  for (const dep of round.deposits) {
+    if (dep.userId.startsWith("bot-") || dep.userId === "house-bot") continue;
+    recordGameResult(getUser(dep.userId), {
+      game: "jackpot",
+      wagered: dep.value,
+      payout: dep.userId === winner.userId ? payoutValue : 0,
+      won: dep.userId === winner.userId,
+    });
   }
 
   round.status = "settled";

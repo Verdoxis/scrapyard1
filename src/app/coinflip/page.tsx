@@ -8,9 +8,11 @@ import { HOUSE_RAKE_PERCENT } from "@/lib/config";
 import { useApp } from "@/components/app-provider";
 import { ConnectGate } from "@/components/connect-gate";
 import { InventoryPicker } from "@/components/steam/inventory-picker";
+import { SkinIconRow } from "@/components/skin-icons";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { playCoinFlipSound } from "@/lib/sfx";
+import type { Skin } from "@/lib/skins";
 
 type CoinSide = "red" | "black";
 
@@ -32,12 +34,8 @@ interface CoinGame {
   rakeValue: number;
   winnerId?: string;
   resultSide?: CoinSide;
-  creatorItems: Array<{
-    skin: { name: string; weapon: string; price: number; image?: string };
-  }>;
-  joinerItems: Array<{
-    skin: { name: string; weapon: string; price: number; image?: string };
-  }>;
+  creatorItems: Array<{ skin: Skin }>;
+  joinerItems: Array<{ skin: Skin }>;
 }
 
 function RustCoin({
@@ -320,19 +318,19 @@ function CoinflipLobby() {
               <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
                 {g.status.replaceAll("_", " ")}
               </p>
-              <p className="mt-1 text-xs text-[#a89888]">
-                {g.creatorName}:{" "}
-                {g.creatorItems
-                  .map((i) => `${i.skin.name} (${formatPrice(i.skin.price)})`)
-                  .join(", ")}
-              </p>
-              {g.joinerItems.length > 0 && g.joinerName && (
-                <p className="text-xs text-[#a89888]">
-                  {g.joinerName}:{" "}
-                  {g.joinerItems
-                    .map((i) => `${i.skin.name} (${formatPrice(i.skin.price)})`)
-                    .join(", ")}
+              <div className="mt-1">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[#6b6258]">
+                  {g.creatorName}
                 </p>
+                <SkinIconRow items={g.creatorItems} size="sm" />
+              </div>
+              {g.joinerItems.length > 0 && g.joinerName && (
+                <div className="mt-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-[#6b6258]">
+                    {g.joinerName}
+                  </p>
+                  <SkinIconRow items={g.joinerItems} size="sm" />
+                </div>
               )}
 
               {g.status === "settled" && (

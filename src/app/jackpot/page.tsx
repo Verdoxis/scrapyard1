@@ -7,7 +7,9 @@ import { HOUSE_RAKE_PERCENT } from "@/lib/config";
 import { useApp } from "@/components/app-provider";
 import { ConnectGate } from "@/components/connect-gate";
 import { InventoryPicker } from "@/components/steam/inventory-picker";
+import { SkinIconRow } from "@/components/skin-icons";
 import { Button } from "@/components/ui/button";
+import type { Skin } from "@/lib/skins";
 
 interface JackpotRound {
   id: string;
@@ -20,7 +22,7 @@ interface JackpotRound {
     userId: string;
     displayName: string;
     value: number;
-    items: Array<{ skin: { name: string; weapon: string; price: number } }>;
+    items: Array<{ skin: Skin }>;
   }>;
   pendingTrades: string[];
 }
@@ -143,11 +145,7 @@ function JackpotPanel() {
                       {formatPrice(d.value)} · {share}%
                     </span>
                   </div>
-                  <p className="text-[11px] text-[#8a7d70]">
-                    {d.items
-                      .map((i) => `${i.skin.weapon} ${i.skin.name}`)
-                      .join(", ")}
-                  </p>
+                  <SkinIconRow items={d.items} size="sm" />
                 </div>
               );
             })

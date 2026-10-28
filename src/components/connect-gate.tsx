@@ -36,5 +36,33 @@ export function ConnectGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (user.selfBanned) {
+    return (
+      <div className="mx-auto max-w-lg rounded border border-rose-500/40 bg-rose-950/30 px-6 py-12 text-center">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-rose-300">
+          Self-ban active
+        </p>
+        <h2 className="mt-2 font-display text-3xl tracking-wide text-[#f3ebe2]">
+          Gambling locked
+        </h2>
+        <p className="mt-3 text-sm text-[#a89a8c]">
+          Your self-ban lasts until{" "}
+          <strong className="text-rose-200">
+            {user.selfBanUntil
+              ? new Date(user.selfBanUntil).toLocaleString()
+              : "further notice"}
+          </strong>
+          . Take the break — you can still browse Stats.
+        </p>
+        <Link
+          href="/stats"
+          className="mt-6 inline-flex rounded bg-[#cd412b] px-5 py-2.5 font-display text-sm tracking-wider text-[#140c08] hover:bg-[#e25a3c]"
+        >
+          View stats
+        </Link>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }

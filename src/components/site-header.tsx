@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { formatPrice } from "@/lib/skins";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/components/app-provider";
-import { HOUSE_RAKE_PERCENT } from "@/lib/config";
 import { ScrapyardLogo } from "@/components/logo";
 
 const NAV = [
@@ -13,12 +12,13 @@ const NAV = [
   { href: "/coinflip", label: "Coinflip" },
   { href: "/jackpot", label: "Jackpot" },
   { href: "/chat", label: "Chat" },
+  { href: "/stats", label: "Stats" },
   { href: "/connect", label: "Connect Steam" },
 ];
 
 export function SiteHeader() {
   const pathname = usePathname();
-  const { user, house, onlineCount, loading } = useApp();
+  const { user, onlineCount, loading } = useApp();
 
   const siteValue =
     user?.siteInventory.reduce((s, i) => s + (i.skin?.price ?? 0), 0) ?? 0;
@@ -64,14 +64,25 @@ export function SiteHeader() {
             </span>
           </div>
 
+          {user?.selfBanned && (
+            <Link
+              href="/stats"
+              className="hidden rounded-sm border border-rose-500/40 bg-rose-950/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-rose-200 sm:inline"
+            >
+              Self-banned
+            </Link>
+          )}
+
           {user?.steamConnected && user.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.avatarUrl}
-              alt=""
-              className="h-9 w-9 rounded-sm border border-[rgba(196,92,38,0.45)] object-cover"
-              title={user.displayName}
-            />
+            <Link href="/stats">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={user.avatarUrl}
+                alt=""
+                className="h-9 w-9 rounded-sm border border-[rgba(196,92,38,0.45)] object-cover"
+                title={user.displayName}
+              />
+            </Link>
           ) : null}
 
           <div className="rounded-sm border border-[rgba(196,92,38,0.25)] bg-[rgba(28,22,18,0.9)] px-3 py-1.5">
@@ -84,14 +95,6 @@ export function SiteHeader() {
                 : user?.steamConnected
                   ? formatPrice(siteValue)
                   : "Not linked"}
-            </p>
-          </div>
-          <div className="hidden rounded-sm border border-[rgba(245,158,11,0.25)] bg-[rgba(28,22,18,0.9)] px-3 py-1.5 lg:block">
-            <p className="text-[9px] uppercase tracking-[0.2em] text-[#8a7d70]">
-              House {HOUSE_RAKE_PERCENT}%
-            </p>
-            <p className="font-mono text-sm text-[#fbbf24]">
-              {formatPrice(house?.earnings ?? 0)}
             </p>
           </div>
         </div>
