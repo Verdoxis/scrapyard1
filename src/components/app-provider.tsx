@@ -53,6 +53,7 @@ export interface PublicUser {
     totalValue: number;
     message: string;
     createdAt: number;
+    steamTradeUrl?: string;
     items: Array<{ skinId: string; assetId: string }>;
   }>;
   stats: UserStats;

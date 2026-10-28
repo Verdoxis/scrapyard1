@@ -1,8 +1,15 @@
 import { botItemsNearValue } from "./bots";
 import { COINFLIP_VALUE_TOLERANCE } from "./config";
-import { fairFloat } from "./fairness";
+import { fairFloat, generateServerSeed, hashServerSeed } from "./fairness";
 import { applyRake } from "./rake";
-import { createGambleTrade, findAcceptedTrade, tickUserTrades } from "./steam-bot";
+import {
+  createGambleTrade,
+  createPayoutTrade,
+  findAcceptedTrade,
+  forceAcceptPendingTrades,
+  getBotMode,
+  tickUserTrades,
+} from "./steam-bot";
 import {
   addHouseItems,
   assertNotSelfBanned,
@@ -20,6 +27,14 @@ import {
   type UserState,
 } from "./store";
 
+const BOT_LOBBY_AVATARS = [
+  "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+  "https://avatars.steamstatic.com/b5bd56c1aa4644a474a2e4972be27ef9e82e517e_full.jpg",
+  "https://avatars.steamstatic.com/a008f750399356a713c531e15a8ae79d7fa5eae8_full.jpg",
+];
+
+const BOT_LOBBY_NAMES = ["OilRigRaider", "ScrapBandit", "RoofCamper"];
+
 function requireSteam(user: UserState) {
   if (!user.steamConnected) {
     throw new Error("Connect Steam first — paste your trade URL on the Connect page.");
@@ -32,12 +47,57 @@ function opposite(side: CoinSide): CoinSide {
 }
 
 export function listCoinflips() {
+  seedBotOpenFlips();
   for (const game of getCoinflips()) {
     progressCoinflip(game.id);
   }
   return getCoinflips()
     .filter((g) => g.status !== "cancelled")
     .map(publicCoinflip);
+}
+
+/** Keep a few bot-hosted open lobbies so you can join and test. */
+export function seedBotOpenFlips() {
+  const openBots = getCoinflips().filter(
+    (g) => g.status === "open" && g.creatorId.startsWith("bot-lobby"),
+  );
+  if (openBots.length >= 3) return;
+
+  const targets = [
+    { cents: 180, name: BOT_LOBBY_NAMES[0], avatar: BOT_LOBBY_AVATARS[0] },
+    { cents: 420, name: BOT_LOBBY_NAMES[1], avatar: BOT_LOBBY_AVATARS[1] },
+    { cents: 780, name: BOT_LOBBY_NAMES[2], avatar: BOT_LOBBY_AVATARS[2] },
+  ];
+
+  for (let i = 0; i < targets.length; i++) {
+    const creatorId = `bot-lobby-${i + 1}`;
+    if (openBots.some((g) => g.creatorId === creatorId)) continue;
+
+    const t = targets[i];
+    const items = botItemsNearValue(t.cents);
+    const serverSeed = generateServerSeed();
+    const side: CoinSide = i % 2 === 0 ? "red" : "black";
+    const game: CoinflipGame = {
+      id: nanoid(10),
+      status: "open",
+      creatorId,
+      creatorName: t.name,
+      creatorAvatar: t.avatar,
+      creatorSide: side,
+      creatorItems: items,
+      joinerItems: [],
+      totalValue: itemsValue(items),
+      rakeValue: 0,
+      winnerItems: [],
+      houseItems: [],
+      serverSeedHash: hashServerSeed(serverSeed),
+      serverSeed,
+      clientSeed: creatorId,
+      nonce: Math.floor(Math.random() * 1000),
+      createdAt: Date.now() - i * 1000,
+    };
+    saveCoinflip(game);
+  }
 }
 
 export function createCoinflip(assetIds: string[], side: CoinSide) {
@@ -116,6 +176,11 @@ export function joinCoinflip(gameId: string, assetIds: string[]) {
   game.status = "awaiting_joiner_trade";
   game.totalValue = itemsValue([...game.creatorItems, ...game.joinerItems]);
   saveCoinflip(game);
+
+  // Mock bot: accept the join trade immediately so the flip can resolve
+  if (getBotMode() === "mock") {
+    forceAcceptPendingTrades(user);
+  }
   progressCoinflip(game.id);
   return { game: publicCoinflip(getCoinflip(game.id)!), trade };
 }
@@ -174,21 +239,41 @@ export function callBotOpponent(gameId: string) {
   return publicCoinflip(getCoinflip(gameId)!);
 }
 
+function isBotId(id: string | undefined) {
+  return Boolean(
+    id &&
+      (id === "house-bot" ||
+        id.startsWith("bot-") ||
+        id.startsWith("bot-lobby")),
+  );
+}
+
 function settleCoinflip(game: CoinflipGame) {
   if (game.status === "settled") return;
-  const creator = getUser(game.creatorId);
+
+  const seed =
+    game.serverSeed ||
+    (isBotId(game.creatorId)
+      ? generateServerSeed()
+      : getUser(game.creatorId).serverSeed);
+  const nonce = isBotId(game.creatorId)
+    ? game.nonce
+    : getUser(game.creatorId).nonce;
+
+  if (!isBotId(game.creatorId)) {
+    const creator = getUser(game.creatorId);
+    creator.nonce += 1;
+    saveUser(creator);
+  }
 
   game.status = "flipping";
-  const nonce = creator.nonce;
-  const roll = fairFloat(creator.serverSeed, game.clientSeed, nonce);
-  creator.nonce += 1;
-  saveUser(creator);
+  const roll = fairFloat(seed, game.clientSeed, nonce);
 
   const resultSide: CoinSide = roll < 0.5 ? "red" : "black";
   game.resultSide = resultSide;
   game.winnerId =
     resultSide === game.creatorSide ? game.creatorId : game.joinerId;
-  game.serverSeed = creator.serverSeed;
+  game.serverSeed = seed;
   game.nonce = nonce;
 
   const pot = [...game.creatorItems, ...game.joinerItems];
@@ -198,11 +283,19 @@ function settleCoinflip(game: CoinflipGame) {
   game.winnerItems = winnerItems;
   game.houseItems = houseItems;
 
-  if (game.winnerId === "house-bot") {
+  if (isBotId(game.winnerId)) {
     addHouseItems([...winnerItems, ...houseItems], totalValue);
   } else if (game.winnerId) {
     const winner = getUser(game.winnerId);
+    // Hold winnings until they accept the Steam payout trade
     winner.siteInventory.push(...winnerItems);
+    const payout = createPayoutTrade({
+      user: winner,
+      purpose: "coinflip_payout",
+      gameId: game.id,
+      items: winnerItems,
+    });
+    game.payoutTradeId = payout.id;
     saveUser(winner);
     addHouseItems(houseItems, rakeValue);
   }
@@ -211,13 +304,16 @@ function settleCoinflip(game: CoinflipGame) {
   const joinerWager = itemsValue(game.joinerItems);
   const payoutValue = itemsValue(winnerItems);
 
-  recordGameResult(creator, {
-    game: "coinflip",
-    wagered: creatorWager,
-    payout: game.winnerId === creator.id ? payoutValue : 0,
-    won: game.winnerId === creator.id,
-  });
-  if (game.joinerId && game.joinerId !== "house-bot") {
+  if (!isBotId(game.creatorId)) {
+    const creator = getUser(game.creatorId);
+    recordGameResult(creator, {
+      game: "coinflip",
+      wagered: creatorWager,
+      payout: game.winnerId === creator.id ? payoutValue : 0,
+      won: game.winnerId === creator.id,
+    });
+  }
+  if (game.joinerId && !isBotId(game.joinerId)) {
     recordGameResult(getUser(game.joinerId), {
       game: "coinflip",
       wagered: joinerWager,

@@ -81,8 +81,14 @@ export function createGambleTrade(opts: {
   return trade;
 }
 
+function isPayout(purpose: TradeOffer["purpose"]) {
+  return purpose === "coinflip_payout" || purpose === "jackpot_payout";
+}
+
 function advanceTrade(user: UserState, trade: TradeOffer) {
   if (trade.status === "accepted" || trade.status === "declined") return false;
+  // Payouts wait for the player to accept via the win modal / Steam link
+  if (isPayout(trade.purpose)) return false;
 
   const age = Date.now() - trade.createdAt;
   let next: TradeStatus = trade.status;
@@ -138,10 +144,11 @@ export function forceAcceptIfReady(userId: string, tradeId: string) {
   return getTrade(user, tradeId);
 }
 
-/** Instantly accept open mock trades (demo spin / testing). */
+/** Instantly accept open mock deposit trades (demo spin / testing). */
 export function forceAcceptPendingTrades(user: UserState) {
   if (getBotMode() !== "mock") return;
   for (const trade of user.trades) {
+    if (isPayout(trade.purpose)) continue;
     if (trade.status !== "pending" && trade.status !== "sent") continue;
     trade.status = "accepted";
     trade.updatedAt = Date.now();
@@ -152,4 +159,58 @@ export function forceAcceptPendingTrades(user: UserState) {
     );
   }
   saveUser(user);
+}
+
+/** Bot sends winnings to the player — they open the link to accept. */
+export function createPayoutTrade(opts: {
+  user: UserState;
+  purpose: "coinflip_payout" | "jackpot_payout";
+  gameId: string;
+  items: EscrowItem[];
+}): TradeOffer {
+  const { user, purpose, gameId, items } = opts;
+  const offerId = nanoid(8);
+  const trade: TradeOffer = {
+    id: nanoid(12),
+    purpose,
+    gameId,
+    status: "sent",
+    steamTradeUrl: `https://steamcommunity.com/tradeoffer/${offerId}/`,
+    items: items.map((i) => ({ ...i, ownerId: user.id })),
+    totalValue: itemsValue(items),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    message:
+      "You won! Open the Steam trade offer and accept to receive your skins.",
+  };
+  user.trades.unshift(trade);
+  saveUser(user);
+  return trade;
+}
+
+/** Player accepted the payout trade — skins land in Steam inventory. */
+export function acceptPayoutTrade(user: UserState, tradeId: string) {
+  const trade = user.trades.find((t) => t.id === tradeId);
+  if (!trade) throw new Error("Trade not found.");
+  if (!isPayout(trade.purpose)) {
+    throw new Error("This is not a payout trade.");
+  }
+  if (trade.status === "accepted") return trade;
+
+  trade.status = "accepted";
+  trade.updatedAt = Date.now();
+  trade.message = "Trade accepted — winnings are in your Steam inventory.";
+
+  for (const item of trade.items) {
+    user.steamInventory.push({
+      assetId: `won_${item.skinId}_${nanoid(6)}`,
+      skinId: item.skinId,
+      locked: false,
+    });
+  }
+  // Clear matching site-inventory holds if any
+  const wonIds = new Set(trade.items.map((i) => i.instanceId));
+  user.siteInventory = user.siteInventory.filter((i) => !wonIds.has(i.instanceId));
+  saveUser(user);
+  return trade;
 }

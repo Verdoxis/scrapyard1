@@ -17,11 +17,19 @@ export interface EscrowItem {
   ownerId: string;
 }
 
+export type TradePurpose =
+  | "coinflip_create"
+  | "coinflip_join"
+  | "jackpot_deposit"
+  | "coinflip_payout"
+  | "jackpot_payout";
+
 export interface TradeOffer {
   id: string;
-  purpose: "coinflip_create" | "coinflip_join" | "jackpot_deposit";
+  purpose: TradePurpose;
   gameId: string;
   status: TradeStatus;
+  /** Steam trade offer URL the player opens to accept */
   steamTradeUrl: string;
   items: EscrowItem[];
   totalValue: number;
@@ -58,6 +66,8 @@ export interface CoinflipGame {
   rakeValue: number;
   winnerItems: EscrowItem[];
   houseItems: EscrowItem[];
+  /** Payout trade the winner must accept on Steam */
+  payoutTradeId?: string;
   serverSeedHash: string;
   serverSeed?: string;
   clientSeed: string;
@@ -140,11 +150,11 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV6?: GlobalState };
+const g = globalThis as unknown as { __scrapyardV7?: GlobalState };
 
 function state(): GlobalState {
-  if (!g.__scrapyardV6) {
-    g.__scrapyardV6 = {
+  if (!g.__scrapyardV7) {
+    g.__scrapyardV7 = {
       users: new Map(),
       coinflips: new Map(),
       jackpot: null,
@@ -152,7 +162,7 @@ function state(): GlobalState {
       houseEarnings: 0,
     };
   }
-  return g.__scrapyardV6;
+  return g.__scrapyardV7;
 }
 
 export function emptyStats(): UserStats {
