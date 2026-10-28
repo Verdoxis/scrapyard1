@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { formatPrice } from "@/lib/skins";
-import { playSelectSound } from "@/lib/sfx";
 import { SkinCard } from "@/components/skin-card";
 import type { EnrichedSkinItem } from "@/components/app-provider";
 
@@ -58,10 +57,7 @@ export function InventoryPicker({
               key={item.assetId}
               skin={item.skin}
               selected={isSelected}
-              onClick={() => {
-                playSelectSound();
-                onToggle(item.assetId!);
-              }}
+              onClick={() => onToggle(item.assetId!)}
               compact
             />
           );

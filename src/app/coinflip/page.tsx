@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/skins";
-import {
-  COINFLIP_MAX_CHANCE_DIFF_PERCENT,
-  HOUSE_RAKE_PERCENT,
-} from "@/lib/config";
+import { HOUSE_RAKE_PERCENT } from "@/lib/config";
 import { useApp } from "@/components/app-provider";
 import { ConnectGate } from "@/components/connect-gate";
 import { InventoryPicker } from "@/components/steam/inventory-picker";
@@ -17,18 +14,20 @@ import {
   type CoinSide,
 } from "@/components/rust-coin";
 import { WinModal, type WinPayload } from "@/components/win-modal";
+import { LoseModal, type LosePayload } from "@/components/lose-modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { playCoinFlipSound, playSelectSound } from "@/lib/sfx";
+import { playCoinLandDing } from "@/lib/sfx";
 import { pickAssetIdsNearValue, selectionValue } from "@/lib/pick-skins";
 import {
-  coinflipChanceDiffPercent,
   isCoinflipStakeAllowed,
   winChancePercent,
 } from "@/lib/coinflip-odds";
 import type { Skin } from "@/lib/skins";
 
 const FLIP_DURATION_MS = COIN_FLIP_DURATION_MS;
+/** Keep the landed coin / lobby card visible before clearing. */
+const HOLD_AFTER_LAND_MS = 3200;
 
 interface CoinGame {
   id: string;
@@ -171,11 +170,48 @@ function CoinflipLobby() {
   const [message, setMessage] = useState<string | null>(null);
   const [spinId, setSpinId] = useState<string | null>(null);
   const [spinLand, setSpinLand] = useState<CoinSide | null>(null);
+  const [holdingResult, setHoldingResult] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [joinTarget, setJoinTarget] = useState<string | null>(null);
   const [win, setWin] = useState<WinPayload | null>(null);
+  const [loss, setLoss] = useState<LosePayload | null>(null);
 
   const inventory = user?.steamInventory ?? [];
+  const onCoinLand = useCallback(() => {
+    playCoinLandDing();
+    setHoldingResult(true);
+  }, []);
+
+  function runFlipReveal(gameId: string, game: CoinGame) {
+    const land = game.resultSide === "black" ? "black" : "red";
+    setSpinLand(land);
+    setHoldingResult(false);
+    setGames((prev) =>
+      prev.map((g) =>
+        g.id === gameId ? { ...g, ...game, status: "flipping" } : g,
+      ),
+    );
+
+    window.setTimeout(() => {
+      setGames((prev) =>
+        prev.map((g) =>
+          g.id === gameId ? { ...g, ...game, status: "settled" } : g,
+        ),
+      );
+      setHoldingResult(true);
+    }, FLIP_DURATION_MS);
+
+    window.setTimeout(() => {
+      setSpinId(null);
+      setSpinLand(null);
+      setHoldingResult(false);
+      void (async () => {
+        await refresh();
+        await load();
+        await showResultAfterFlip(game);
+      })();
+    }, FLIP_DURATION_MS + HOLD_AFTER_LAND_MS);
+  }
 
   const load = useCallback(async () => {
     const data = await api<{ games: CoinGame[] }>("/api/coinflip");
@@ -212,7 +248,7 @@ function CoinflipLobby() {
     () =>
       games
         .filter((g) => g.status === "settled" && spinId !== g.id)
-        .slice(0, 6),
+        .slice(0, 40),
     [games, spinId],
   );
 
@@ -236,60 +272,73 @@ function CoinflipLobby() {
     }
     const value = selectionValue(inventory, ids);
     if (!isCoinflipStakeAllowed(target, value)) {
-      setError(
-        `Closest pick is ${formatPrice(value)} — tweak selection to stay within ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}% chance gap.`,
-      );
+      setError(`Adjust skins so your stake is closer to ${formatPrice(target)}.`);
       return;
     }
-    playSelectSound();
-    setMessage(`Quick selected ${ids.length} skin${ids.length === 1 ? "" : "s"} · ${formatPrice(value)}`);
+    setMessage(null);
   }
 
   const joinGame = joinTarget
     ? games.find((g) => g.id === joinTarget) ?? null
     : null;
   const joinTargetCents = joinGame ? creatorWager(joinGame) : 0;
-  const joinChanceGap = coinflipChanceDiffPercent(
-    joinTargetCents,
-    selectedCents,
-  );
   const joinInRange =
     Boolean(joinGame) &&
     selected.length > 0 &&
     isCoinflipStakeAllowed(joinTargetCents, selectedCents);
   const joinYourChance = winChancePercent(selectedCents, joinTargetCents);
-  const joinTheirChance = winChancePercent(joinTargetCents, selectedCents);
 
-  async function showWinIfNeeded(game: CoinGame) {
-    if (game.winnerId !== user?.id || !game.resultSide) return;
-    const fresh = await api<{
-      user: {
-        id: string;
-        trades: Array<{
-          id: string;
-          steamTradeUrl?: string;
-          purpose: string;
-          gameId: string;
-        }>;
-      };
-    }>("/api/me");
+  async function showResultAfterFlip(game: CoinGame) {
+    if (!game.resultSide || !user?.id) return;
     await refresh();
 
-    const t =
-      fresh.user.trades.find((x) => x.id === game.payoutTradeId) ||
-      fresh.user.trades.find(
-        (x) =>
-          x.purpose === "coinflip_payout" && x.gameId === game.id,
-      );
+    const iAmCreator = game.creatorId === user.id;
+    const iAmJoiner = game.joinerId === user.id;
+    if (!iAmCreator && !iAmJoiner) return;
 
-    setWin({
+    const yourStake = iAmCreator
+      ? game.creatorItems.reduce((s, i) => s + i.skin.price, 0)
+      : game.joinerItems.reduce((s, i) => s + i.skin.price, 0);
+
+    if (game.winnerId === user.id) {
+      const fresh = await api<{
+        user: {
+          id: string;
+          trades: Array<{
+            id: string;
+            steamTradeUrl?: string;
+            purpose: string;
+            gameId: string;
+          }>;
+        };
+      }>("/api/me");
+
+      const t =
+        fresh.user.trades.find((x) => x.id === game.payoutTradeId) ||
+        fresh.user.trades.find(
+          (x) =>
+            x.purpose === "coinflip_payout" && x.gameId === game.id,
+        );
+
+      setWin({
+        gameId: game.id,
+        resultSide: game.resultSide,
+        potValue: game.totalValue,
+        rakeValue: game.rakeValue,
+        items: game.winnerItems ?? [...game.creatorItems, ...game.joinerItems],
+        payoutTradeId: t?.id ?? game.payoutTradeId,
+        tradeUrl: t?.steamTradeUrl,
+      });
+      return;
+    }
+
+    setLoss({
       gameId: game.id,
       resultSide: game.resultSide,
       potValue: game.totalValue,
-      rakeValue: game.rakeValue,
-      items: game.winnerItems ?? [...game.creatorItems, ...game.joinerItems],
-      payoutTradeId: t?.id ?? game.payoutTradeId,
-      tradeUrl: t?.steamTradeUrl,
+      opponentName: iAmCreator ? game.joinerName : game.creatorName,
+      yourStake,
+      items: iAmCreator ? game.creatorItems : game.joinerItems,
     });
   }
 
@@ -336,7 +385,7 @@ function CoinflipLobby() {
     setMessage(null);
     setSpinId(gameId);
     setSpinLand(null);
-    playCoinFlipSound();
+    setHoldingResult(false);
     try {
       const data = await api<{ game: CoinGame; trade: { message: string } }>(
         "/api/coinflip",
@@ -349,28 +398,14 @@ function CoinflipLobby() {
           }),
         },
       );
-      const land = data.game.resultSide === "black" ? "black" : "red";
-      setSpinLand(land);
       setSelected([]);
       setJoinTarget(null);
       setDrawerOpen(false);
-      setGames((prev) =>
-        prev.map((g) =>
-          g.id === gameId ? { ...g, ...data.game, status: "flipping" } : g,
-        ),
-      );
-      setTimeout(() => {
-        setSpinId(null);
-        setSpinLand(null);
-        void (async () => {
-          await refresh();
-          await load();
-          await showWinIfNeeded(data.game);
-        })();
-      }, FLIP_DURATION_MS);
+      runFlipReveal(gameId, data.game);
     } catch (err) {
       setSpinId(null);
       setSpinLand(null);
+      setHoldingResult(false);
       setError(err instanceof Error ? err.message : "Join failed");
     } finally {
       setBusy(false);
@@ -382,31 +417,17 @@ function CoinflipLobby() {
     setError(null);
     setSpinId(gameId);
     setSpinLand(null);
-    playCoinFlipSound();
+    setHoldingResult(false);
     try {
       const data = await api<{ game: CoinGame }>("/api/coinflip", {
         method: "POST",
         body: JSON.stringify({ action: "call_bot", gameId }),
       });
-      const land = data.game.resultSide === "black" ? "black" : "red";
-      setSpinLand(land);
-      setGames((prev) =>
-        prev.map((g) =>
-          g.id === gameId ? { ...g, ...data.game, status: "flipping" } : g,
-        ),
-      );
-      setTimeout(() => {
-        setSpinId(null);
-        setSpinLand(null);
-        void (async () => {
-          await refresh();
-          await load();
-          await showWinIfNeeded(data.game);
-        })();
-      }, FLIP_DURATION_MS);
+      runFlipReveal(gameId, data.game);
     } catch (err) {
       setSpinId(null);
       setSpinLand(null);
+      setHoldingResult(false);
       setError(err instanceof Error ? err.message : "Bot call failed");
     } finally {
       setBusy(false);
@@ -416,6 +437,7 @@ function CoinflipLobby() {
   return (
     <div className="relative">
       {win && <WinModal win={win} onClose={() => setWin(null)} />}
+      {loss && <LoseModal loss={loss} onClose={() => setLoss(null)} />}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-display text-3xl tracking-wide text-[#efe6da]">
@@ -465,24 +487,29 @@ function CoinflipLobby() {
             const joining = joinTarget === g.id && drawerOpen;
             const canJoin =
               g.status === "open" && !mine && !isBotCreator(user?.id ?? "");
-            const spinning = spinId === g.id;
+            const activeFlip = spinId === g.id;
+            const spinning = activeFlip && spinLand != null && !holdingResult;
+            const revealing = activeFlip;
             const joinerSide =
               g.joinerSide ?? (g.creatorSide === "red" ? "black" : "red");
             const creatorWon =
-              g.status === "settled" && g.winnerId === g.creatorId;
+              (g.status === "settled" || holdingResult) &&
+              activeFlip &&
+              g.winnerId === g.creatorId;
             const joinerWon =
-              g.status === "settled" &&
+              (g.status === "settled" || holdingResult) &&
+              activeFlip &&
               Boolean(g.joinerId) &&
               g.winnerId === g.joinerId;
             const pot =
-              spinning || g.joinerId ? g.totalValue : wager;
+              revealing || g.joinerId ? g.totalValue : wager;
 
             return (
               <div
                 key={g.id}
                 className={cn(
-                  "relative overflow-hidden rounded-sm border transition",
-                  spinning
+                  "relative overflow-hidden rounded-sm border transition-colors duration-500",
+                  revealing
                     ? "border-[#f0a060] bg-[rgba(40,24,14,0.98)]"
                     : "border-[rgba(205,65,43,0.28)] bg-[rgba(14,11,9,0.96)] hover:border-[rgba(240,160,96,0.45)]",
                 )}
@@ -529,12 +556,19 @@ function CoinflipLobby() {
                   {/* Center — flip */}
                   <div className="flex flex-col items-center justify-center gap-1.5 border-y border-[rgba(255,255,255,0.05)] bg-black/25 px-3 py-5 md:border-x md:border-y-0">
                     <RustCoin
-                      side={g.resultSide || g.creatorSide}
+                      side={
+                        (revealing ? spinLand : null) ||
+                        g.resultSide ||
+                        g.creatorSide
+                      }
                       landSide={
-                        spinning ? spinLand ?? undefined : g.resultSide
+                        revealing
+                          ? spinLand ?? undefined
+                          : g.resultSide
                       }
                       size="lg"
-                      spinning={spinning && spinLand != null}
+                      spinning={spinning}
+                      onLand={revealing ? onCoinLand : undefined}
                     />
                     <p className="font-display text-2xl tracking-wide text-[#f0a060] sm:text-3xl">
                       {formatPrice(pot)}
@@ -542,9 +576,11 @@ function CoinflipLobby() {
                     <p className="text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
                       {spinning
                         ? "Flipping…"
-                        : g.status === "settled" && g.resultSide
+                        : holdingResult && activeFlip && g.resultSide
                           ? `${g.resultSide} wins`
-                          : "vs"}
+                          : g.status === "settled" && g.resultSide
+                            ? `${g.resultSide} wins`
+                            : "vs"}
                     </p>
                   </div>
 
@@ -610,7 +646,7 @@ function CoinflipLobby() {
 
                         {canJoin && (
                           <Button
-                            disabled={busy || spinning}
+                            disabled={busy || revealing}
                             onClick={() => openJoinPicker(g, true)}
                             className="h-11 w-full max-w-[220px] bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
                           >
@@ -620,7 +656,7 @@ function CoinflipLobby() {
 
                         {mine && g.status === "open" && (
                           <Button
-                            disabled={busy || spinning}
+                            disabled={busy || revealing}
                             onClick={() => void callBot(g.id)}
                             className="h-10 w-full max-w-[220px] bg-[rgba(205,65,43,0.28)] text-[#f0a060] hover:bg-[rgba(205,65,43,0.42)]"
                           >
@@ -645,26 +681,52 @@ function CoinflipLobby() {
 
       {history.length > 0 && (
         <section className="mt-10">
-          <h3 className="font-display text-xl text-[#a89888]">Recent</h3>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {history.map((g) => (
-              <div
-                key={g.id}
-                className="flex items-center justify-between rounded-sm border border-[rgba(255,255,255,0.06)] bg-black/25 px-3 py-2 text-sm"
-              >
-                <span className="text-[#a89888]">
-                  {g.creatorName} vs {g.joinerName || "—"}
-                </span>
-                <span
-                  className="font-mono"
-                  style={{
-                    color: g.resultSide === "red" ? "#e85a45" : "#c8c8c8",
-                  }}
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <h3 className="font-display text-xl text-[#a89888]">Recent</h3>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-[#6b6258]">
+              Scroll for more
+            </p>
+          </div>
+          <div className="max-h-72 space-y-1.5 overflow-y-auto overscroll-contain rounded-sm border border-[rgba(255,255,255,0.06)] bg-black/20 p-2 pr-1">
+            {history.map((g) => {
+              const winnerName =
+                g.winnerId === g.creatorId
+                  ? g.creatorName
+                  : g.winnerId === g.joinerId
+                    ? g.joinerName
+                    : null;
+              return (
+                <div
+                  key={g.id}
+                  className="flex items-center justify-between gap-3 rounded-sm px-3 py-2.5 text-sm transition hover:bg-black/35"
                 >
-                  {g.resultSide?.toUpperCase()} · {formatPrice(g.totalValue)}
-                </span>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <p className="truncate text-[#efe6da]">
+                      {g.creatorName}
+                      <span className="text-[#6b6258]"> vs </span>
+                      {g.joinerName || "—"}
+                    </p>
+                    <p className="mt-0.5 truncate text-[11px] text-[#8a7d70]">
+                      {winnerName ? `${winnerName} won` : "Settled"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p
+                      className="font-mono text-sm"
+                      style={{
+                        color:
+                          g.resultSide === "red" ? "#e85a45" : "#c8c8c8",
+                      }}
+                    >
+                      {g.resultSide?.toUpperCase()}
+                    </p>
+                    <p className="font-mono text-[11px] text-[#f0a060]">
+                      {formatPrice(g.totalValue)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -726,25 +788,20 @@ function CoinflipLobby() {
                   </p>
                 </div>
                 <SkinIconRow items={joinGame.creatorItems} size="sm" />
-                <p className="mt-2 text-[11px] text-[#8a7d70]">
-                  Pick skins near their stake. Win-chance gap can be at most{" "}
-                  {COINFLIP_MAX_CHANCE_DIFF_PERCENT}% — a little more value
-                  still nudges your odds up.
-                </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="mt-2 border-[rgba(240,160,96,0.4)] text-[#f0a060]"
+                  className="mt-3 border-[rgba(240,160,96,0.4)] text-[#f0a060]"
                   onClick={() => openJoinPicker(joinGame, true)}
                 >
-                  Quick select near {formatPrice(joinTargetCents)}
+                  Quick select
                 </Button>
               </div>
             ) : (
               <div>
                 <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
-                  Call a side
+                  Your side
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {(["red", "black"] as const).map((s) => (
@@ -770,65 +827,35 @@ function CoinflipLobby() {
             )}
 
             <div className="sticky top-0 z-10 space-y-3 rounded-sm border border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.96)] p-3 backdrop-blur">
-              <p className="text-sm text-[#a89888]">
-                Your stake{" "}
-                <span className="font-mono text-[#f0a060]">
-                  {formatPrice(selectedCents)}
-                </span>
-                {selected.length > 0 && (
-                  <span className="text-[#6b6258]">
-                    {" "}
-                    · {selected.length} skin{selected.length === 1 ? "" : "s"}
-                  </span>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
+                    Your stake
+                  </p>
+                  <p className="font-mono text-lg text-[#f0a060]">
+                    {formatPrice(selectedCents)}
+                  </p>
+                </div>
+                {joinGame && selected.length > 0 && (
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
+                      Win chance
+                    </p>
+                    <p
+                      className={cn(
+                        "font-display text-3xl tracking-wide",
+                        joinInRange ? "text-[#efe6da]" : "text-rose-400",
+                      )}
+                    >
+                      {joinYourChance.toFixed(0)}%
+                    </p>
+                  </div>
                 )}
-              </p>
+              </div>
               {message && (
                 <p className="text-sm text-emerald-400">{message}</p>
               )}
               {error && <p className="text-sm text-rose-400">{error}</p>}
-
-              {joinGame && selected.length > 0 && (
-                <div className="space-y-1 rounded-sm bg-black/35 px-2.5 py-2 text-xs">
-                  <div className="flex justify-between text-[#a89888]">
-                    <span>Their stake</span>
-                    <span className="font-mono text-[#efe6da]">
-                      {formatPrice(joinTargetCents)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[#a89888]">
-                    <span>Win-chance gap</span>
-                    <span
-                      className={cn(
-                        "font-mono",
-                        joinInRange ? "text-emerald-400" : "text-rose-400",
-                      )}
-                    >
-                      {joinChanceGap.toFixed(1)}%{" "}
-                      {joinInRange
-                        ? "ok"
-                        : `max ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}%`}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex justify-between font-semibold">
-                    <span className="text-[#efe6da]">Your win chance</span>
-                    <span className="font-mono text-[#f0a060]">
-                      {joinYourChance.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-[#a89888]">
-                    <span>Their win chance</span>
-                    <span className="font-mono">
-                      {joinTheirChance.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/50">
-                    <div
-                      className="h-full bg-[#cd412b]"
-                      style={{ width: `${joinYourChance}%` }}
-                    />
-                  </div>
-                </div>
-              )}
 
               {joinGame ? (
                 <Button
@@ -839,10 +866,10 @@ function CoinflipLobby() {
                   {busy
                     ? "Joining…"
                     : joinInRange
-                      ? `Confirm join · ${joinYourChance.toFixed(1)}% chance`
+                      ? `Flip · ${joinYourChance.toFixed(0)}%`
                       : selected.length === 0
-                        ? "Select skins to join"
-                        : `Chance gap over ${COINFLIP_MAX_CHANCE_DIFF_PERCENT}%`}
+                        ? "Pick skins"
+                        : "Stake too far — adjust"}
                 </Button>
               ) : (
                 <Button
@@ -850,7 +877,7 @@ function CoinflipLobby() {
                   onClick={() => void create()}
                   className="h-11 w-full bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
                 >
-                  {busy ? "Working…" : "Send bot trade & create lobby"}
+                  {busy ? "Working…" : "Create lobby"}
                 </Button>
               )}
             </div>

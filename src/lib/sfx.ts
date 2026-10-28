@@ -1,19 +1,51 @@
 "use client";
 
-function play(src: string, volume = 0.7) {
+let audioCtx: AudioContext | null = null;
+
+function ctx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
   try {
-    const audio = new Audio(src);
-    audio.volume = volume;
-    void audio.play().catch(() => {});
+    if (!audioCtx) {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AC) return null;
+      audioCtx = new AC();
+    }
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    return audioCtx;
   } catch {
-    /* ignore */
+    return null;
   }
 }
 
-export function playSelectSound() {
-  play("/sounds/select.mp3", 0.7);
+/** Soft chime when the coin lands — no MP3. */
+export function playCoinLandDing() {
+  const ac = ctx();
+  if (!ac) return;
+  const now = ac.currentTime;
+
+  const tone = (freq: number, start: number, dur: number, gain: number) => {
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now + start);
+    g.gain.setValueAtTime(0.0001, now + start);
+    g.gain.exponentialRampToValueAtTime(gain, now + start + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+    osc.connect(g);
+    g.connect(ac.destination);
+    osc.start(now + start);
+    osc.stop(now + start + dur + 0.05);
+  };
+
+  tone(880, 0, 0.35, 0.12);
+  tone(1320, 0.04, 0.45, 0.08);
 }
 
-export function playCoinFlipSound() {
-  play("/sounds/coinflip.mp3", 0.75);
-}
+/** Kept as a no-op — old select/coinflip MP3s were removed. */
+export function playSelectSound() {}
+
+/** @deprecated use playCoinLandDing at land time */
+export function playCoinFlipSound() {}

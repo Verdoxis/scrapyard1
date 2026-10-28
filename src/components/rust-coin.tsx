@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export type CoinSide = "red" | "black";
 
-const FLIP_MS = 3200;
+/** Slower, smoother flip — ~5.5s. */
+const FLIP_MS = 5500;
 
 function faceGradient(side: CoinSide) {
   return side === "red"
@@ -32,6 +33,10 @@ function faceSequence(start: CoinSide, land: CoinSide, steps: number): CoinSide[
   return seq;
 }
 
+function easeInOutCubic(t: number) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
   const isRed = side === "red";
   if (edgeOn) {
@@ -56,7 +61,6 @@ function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
         boxShadow: faceShadow(side),
       }}
     >
-      {/* Outer rim */}
       <span
         className="pointer-events-none absolute inset-[5%] rounded-full border"
         style={{
@@ -68,7 +72,6 @@ function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
             : "inset 0 0 0 1px rgba(0,0,0,0.55)",
         }}
       />
-      {/* Inner ring */}
       <span
         className="pointer-events-none absolute inset-[18%] rounded-full border"
         style={{
@@ -77,7 +80,6 @@ function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
             : "rgba(200,200,200,0.16)",
         }}
       />
-      {/* Center disc */}
       <span
         className="pointer-events-none absolute left-1/2 top-1/2 h-[34%] w-[34%] -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{
@@ -89,7 +91,6 @@ function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
             : "inset 0 1px 2px rgba(255,255,255,0.15), 0 0 0 1px rgba(180,180,180,0.2)",
         }}
       />
-      {/* Specular highlight */}
       <span
         className="pointer-events-none absolute left-[18%] top-[14%] h-[22%] w-[38%] rounded-full opacity-50"
         style={{
@@ -107,12 +108,14 @@ export function RustCoin({
   size = "md",
   spinning,
   landSide,
+  onLand,
 }: {
   side: CoinSide;
   selected?: boolean;
   size?: "sm" | "md" | "lg";
   spinning?: boolean;
   landSide?: CoinSide;
+  onLand?: () => void;
 }) {
   const dim =
     size === "lg" ? "h-28 w-28" : size === "sm" ? "h-12 w-12" : "h-20 w-20";
@@ -120,34 +123,37 @@ export function RustCoin({
   const [face, setFace] = useState<CoinSide>(landSide ?? side);
   const [scaleX, setScaleX] = useState(1);
   const [lift, setLift] = useState(0);
+  const landedRef = useRef(false);
 
   useEffect(() => {
     if (!spinning || !landSide) {
       setFace(landSide ?? side);
       setScaleX(1);
       setLift(0);
+      landedRef.current = false;
       return;
     }
 
-    const seq = faceSequence(side, landSide, 13);
+    landedRef.current = false;
+    // More half-turns → slower perceived spin over the longer duration
+    const seq = faceSequence(side, landSide, 21);
     const start = performance.now();
     let raf = 0;
 
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / FLIP_MS);
-      const e = 1 - Math.pow(1 - t, 2.6);
+      // Smooth ease; linger a bit more on the last flips
+      const e = easeInOutCubic(t);
       const seg = e * (seq.length - 1);
       const i = Math.min(seq.length - 2, Math.floor(seg));
       const local = seg - i;
+      // Soft squash so edges don't flash harshly
+      const squash = Math.sin(local * Math.PI);
+      const sx = Math.max(0.08, 1 - squash * 0.92);
 
-      if (local < 0.5) {
-        setFace(seq[i]);
-        setScaleX(Math.max(0.06, 1 - local * 2));
-      } else {
-        setFace(seq[i + 1]);
-        setScaleX(Math.max(0.06, (local - 0.5) * 2));
-      }
-      setLift(Math.sin(t * Math.PI) * -22);
+      setFace(local < 0.5 ? seq[i] : seq[i + 1]);
+      setScaleX(sx);
+      setLift(Math.sin(t * Math.PI) * -28);
 
       if (t < 1) {
         raf = requestAnimationFrame(frame);
@@ -155,19 +161,23 @@ export function RustCoin({
         setFace(landSide);
         setScaleX(1);
         setLift(0);
+        if (!landedRef.current) {
+          landedRef.current = true;
+          onLand?.();
+        }
       }
     };
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [spinning, landSide, side]);
+  }, [spinning, landSide, side, onLand]);
 
-  const edgeOn = scaleX < 0.2;
+  const edgeOn = scaleX < 0.22;
 
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center",
+        "relative flex items-center justify-center will-change-transform",
         dim,
         selected &&
           "rounded-full ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
