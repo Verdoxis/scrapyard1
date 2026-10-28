@@ -25,6 +25,9 @@ export interface PublicUser {
   displayName: string;
   steamConnected: boolean;
   steamTradeUrl: string;
+  steamId64: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
   steamInventory: EnrichedSkinItem[];
   siteInventory: EnrichedSkinItem[];
   clientSeed: string;
@@ -59,6 +62,7 @@ interface AppCtx {
   user: PublicUser | null;
   bot: BotInfo | null;
   house: HouseInfo | null;
+  onlineCount: number;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -71,6 +75,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [bot, setBot] = useState<BotInfo | null>(null);
   const [house, setHouse] = useState<HouseInfo | null>(null);
+  const [onlineCount, setOnlineCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,10 +85,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         user: PublicUser;
         bot: BotInfo;
         house: HouseInfo;
+        onlineCount?: number;
       }>("/api/me");
       setUser(data.user);
       setBot(data.bot);
       setHouse(data.house);
+      if (typeof data.onlineCount === "number") {
+        setOnlineCount(data.onlineCount);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
@@ -100,7 +109,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ user, bot, house, loading, error, refresh, setUser }}
+      value={{
+        user,
+        bot,
+        house,
+        onlineCount,
+        loading,
+        error,
+        refresh,
+        setUser,
+      }}
     >
       {children}
     </Ctx.Provider>

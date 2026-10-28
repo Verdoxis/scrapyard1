@@ -1,6 +1,8 @@
 # SCRAPYARD
 
-Rust skin coinflip & jackpot. Connect Steam, see your inventory listed, select skins to gamble — the trade bot sends you an offer for those items. The site takes a **5% house rake** from every settled pot.
+Rust-themed skin coinflip & jackpot. Connect Steam (auto profile pic), browse skins with **Steam market / economy icons**, chat with whoever is online, and gamble via the trade bot. **5% house rake** on every settled pot.
+
+Logo: `public/logo.svg`. Item art is cached under `public/items/steam/` from Steam economy URLs (via SCMM metadata).
 
 ## Run
 

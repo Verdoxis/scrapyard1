@@ -24,9 +24,13 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SCRAPYARD — Coinflip & Jackpot",
+  title: "SCRAPYARD — Rust Coinflip & Jackpot",
   description:
-    "Connect Steam, list your skins, and gamble in coinflip or jackpot via trade bot.",
+    "Connect Steam, list market skins, chat with the yard, and gamble via trade bot.",
+  icons: {
+    icon: "/logo.svg",
+    apple: "/logo.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

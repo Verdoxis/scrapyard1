@@ -91,6 +91,9 @@ export interface UserState {
   displayName: string;
   steamConnected: boolean;
   steamTradeUrl: string;
+  steamId64: string | null;
+  avatarUrl: string | null;
+  profileUrl: string | null;
   steamInventory: SteamInvItem[];
   /** Skins won / held on-site after games */
   siteInventory: EscrowItem[];
@@ -110,11 +113,11 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV2?: GlobalState };
+const g = globalThis as unknown as { __scrapyardV3?: GlobalState };
 
 function state(): GlobalState {
-  if (!g.__scrapyardV2) {
-    g.__scrapyardV2 = {
+  if (!g.__scrapyardV3) {
+    g.__scrapyardV3 = {
       users: new Map(),
       coinflips: new Map(),
       jackpot: null,
@@ -122,32 +125,15 @@ function state(): GlobalState {
       houseEarnings: 0,
     };
   }
-  return g.__scrapyardV2;
+  return g.__scrapyardV3;
 }
 
 export const DEMO_USER_ID = "demo-survivor";
 
-const STEAM_POOL = [
-  "ak-tempered",
-  "ak-forest",
-  "mp5-urban",
-  "thompson-tundra",
-  "sar-hunter",
-  "python-copper",
-  "lr-midnight",
-  "bolt-arctic",
-  "ak-ember",
-  "mp5-neon",
-  "lr-oxide",
-  "sar-blood",
-  "ak-dragon",
-  "bolt-eclipse",
-];
-
 export function buildMockSteamInventory(): SteamInvItem[] {
-  return STEAM_POOL.map((skinId) => ({
-    assetId: `steam_${skinId}_${nanoid(6)}`,
-    skinId,
+  return SKINS.map((skin) => ({
+    assetId: `steam_${skin.id}_${nanoid(6)}`,
+    skinId: skin.id,
     locked: false,
   }));
 }
@@ -159,6 +145,9 @@ function freshUser(id: string): UserState {
     displayName: id === DEMO_USER_ID ? "Survivor" : `Player-${id.slice(0, 5)}`,
     steamConnected: false,
     steamTradeUrl: "",
+    steamId64: null,
+    avatarUrl: null,
+    profileUrl: null,
     steamInventory: [],
     siteInventory: [],
     clientSeed: nanoid(12),
@@ -201,7 +190,17 @@ export function enrichItem(item: EscrowItem | SteamInvItem) {
   };
 }
 
-export function connectSteam(user: UserState, tradeUrl: string, displayName?: string) {
+export function connectSteam(
+  user: UserState,
+  tradeUrl: string,
+  opts?: {
+    displayName?: string;
+    steamId64?: string | null;
+    avatarUrl?: string | null;
+    profileUrl?: string | null;
+    personaName?: string | null;
+  },
+) {
   if (!tradeUrl.includes("steamcommunity.com/tradeoffer/new")) {
     throw new Error(
       "Invalid trade URL. Use the link from Steam → Inventory → Trade Offers → Who can send me Trade Offers.",
@@ -209,10 +208,16 @@ export function connectSteam(user: UserState, tradeUrl: string, displayName?: st
   }
   user.steamTradeUrl = tradeUrl.trim();
   user.steamConnected = true;
-  if (displayName?.trim()) user.displayName = displayName.trim().slice(0, 24);
-  if (user.steamInventory.length === 0) {
-    user.steamInventory = buildMockSteamInventory();
+  user.steamId64 = opts?.steamId64 ?? user.steamId64;
+  user.avatarUrl = opts?.avatarUrl ?? user.avatarUrl;
+  user.profileUrl = opts?.profileUrl ?? user.profileUrl;
+  if (opts?.displayName?.trim()) {
+    user.displayName = opts.displayName.trim().slice(0, 24);
+  } else if (opts?.personaName?.trim()) {
+    user.displayName = opts.personaName.trim().slice(0, 24);
   }
+  // Always refresh listed skins from the Steam market catalog for demo
+  user.steamInventory = buildMockSteamInventory();
   saveUser(user);
   return user;
 }
@@ -281,6 +286,9 @@ export function publicUser(user: UserState) {
     displayName: user.displayName,
     steamConnected: user.steamConnected,
     steamTradeUrl: user.steamTradeUrl,
+    steamId64: user.steamId64,
+    avatarUrl: user.avatarUrl,
+    profileUrl: user.profileUrl,
     steamInventory: user.steamInventory.map(enrichItem),
     siteInventory: user.siteInventory.map(enrichItem),
     clientSeed: user.clientSeed,

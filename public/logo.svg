@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="rust" x1="20" y1="10" x2="110" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#e07030"/>
+      <stop offset="0.45" stop-color="#c45c26"/>
+      <stop offset="1" stop-color="#6b2e14"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="24" y1="24" x2="96" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#d8cfc4"/>
+      <stop offset="1" stop-color="#6a6158"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="18" fill="#120e0b"/>
+  <rect x="8" y="8" width="112" height="112" rx="14" stroke="url(#rust)" stroke-width="3" fill="#1a1410"/>
+  <!-- gear / scrap plate -->
+  <circle cx="64" cy="64" r="34" stroke="url(#steel)" stroke-width="6" fill="#241c16"/>
+  <circle cx="64" cy="64" r="14" fill="url(#rust)"/>
+  <g stroke="url(#steel)" stroke-width="7" stroke-linecap="square">
+    <path d="M64 22v12M64 94v12M22 64h12M94 64h12"/>
+    <path d="M35 35l9 9M84 84l9 9M84 35l-9 9M35 84l9-9"/>
+  </g>
+  <!-- crack / rust slash -->
+  <path d="M78 30c-8 14-6 22 2 34-10 4-18 14-22 28" stroke="#f0a060" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M40 96h48" stroke="#c45c26" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+</svg>

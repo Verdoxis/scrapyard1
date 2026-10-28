@@ -55,9 +55,9 @@ export default function ConnectPage() {
         Connect Steam
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-[#a89a8c]">
-        The trade bot needs your Steam trade URL so it can send you an offer
-        for the skins you pick to gamble. Follow the steps below once, then
-        your inventory stays listed here.
+        Paste your trade URL — we auto-import your Steam profile picture from
+        the partner id, then list skins with Steam market icons. The bot trades
+        you for whatever you select to gamble.
       </p>
 
       <ol className="mt-8 space-y-4 rounded border border-[rgba(196,92,38,0.25)] bg-[rgba(20,16,12,0.9)] p-5 text-sm text-[#c4b5a5]">
@@ -129,14 +129,41 @@ export default function ConnectPage() {
 
       {user?.steamConnected && (
         <section className="mt-10 space-y-6">
+          <div className="flex flex-wrap items-center gap-4 rounded-sm border border-[rgba(205,65,43,0.3)] bg-[rgba(18,14,10,0.9)] p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={user.avatarUrl || "/logo.svg"}
+              alt=""
+              className="h-16 w-16 rounded-sm border border-[rgba(205,65,43,0.45)] object-cover"
+            />
+            <div>
+              <p className="font-display text-2xl text-[#efe6da]">
+                {user.displayName}
+              </p>
+              <p className="font-mono text-xs text-[#a89888]">
+                {user.steamId64 || "Steam linked"}
+              </p>
+              {user.profileUrl && (
+                <a
+                  href={user.profileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-[#f0a060] underline-offset-2 hover:underline"
+                >
+                  Open Steam profile
+                </a>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="font-display text-2xl tracking-wide text-[#f3ebe2]">
                 Your Steam inventory
               </h2>
               <p className="text-sm text-[#a89a8c]">
-                Everything listed here can be selected on Coinflip or Jackpot.
-                The bot will trade you for whatever you pick.
+                Market icons from Steam economy CDN. Select skins on Coinflip or
+                Jackpot — the bot trades you for them.
               </p>
             </div>
             <div className="flex gap-2">
