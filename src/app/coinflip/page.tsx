@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/skins";
@@ -38,54 +38,86 @@ interface CoinGame {
   joinerItems: Array<{ skin: Skin }>;
 }
 
+function coinFaceStyle(side: CoinSide): CSSProperties {
+  const isRed = side === "red";
+  return {
+    background: isRed
+      ? "radial-gradient(circle at 35% 30%, #e85a45, #8b1a12 55%, #3a0808)"
+      : "radial-gradient(circle at 35% 30%, #3a3a3a, #121212 55%, #050505)",
+    boxShadow: isRed
+      ? "inset 0 0 0 3px rgba(255,180,140,0.25), 0 8px 20px rgba(140,20,10,0.45)"
+      : "inset 0 0 0 3px rgba(180,180,180,0.2), 0 8px 20px rgba(0,0,0,0.55)",
+    backfaceVisibility: "hidden",
+    WebkitBackfaceVisibility: "hidden",
+  };
+}
+
 function RustCoin({
   side,
   selected,
   size = "md",
   spinning,
+  landSide,
 }: {
   side: CoinSide;
   selected?: boolean;
   size?: "sm" | "md" | "lg";
   spinning?: boolean;
+  /** When spinning, flip ends on this face (red or black). */
+  landSide?: CoinSide;
 }) {
   const dim =
     size === "lg" ? "h-28 w-28" : size === "sm" ? "h-12 w-12" : "h-20 w-20";
-  const isRed = side === "red";
+  const shown = landSide ?? side;
+  // Front face = red (0°), back face = black (180°)
+  const restDeg = shown === "black" ? 180 : 0;
+  const flips = 6;
+  const spinDeg = restDeg + 360 * flips;
+
   return (
-    <motion.div
-      aria-label={isRed ? "Red" : "Black"}
+    <div
       className={cn(
-        "relative flex items-center justify-center rounded-full",
+        "relative",
         dim,
-        selected && "ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
+        selected && "rounded-full ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
       )}
-      style={{
-        background: isRed
-          ? "radial-gradient(circle at 35% 30%, #e85a45, #8b1a12 55%, #3a0808)"
-          : "radial-gradient(circle at 35% 30%, #3a3a3a, #121212 55%, #050505)",
-        boxShadow: isRed
-          ? "inset 0 0 0 3px rgba(255,180,140,0.25), 0 8px 20px rgba(140,20,10,0.45)"
-          : "inset 0 0 0 3px rgba(180,180,180,0.2), 0 8px 20px rgba(0,0,0,0.55)",
-      }}
-      animate={
-        spinning
-          ? { rotateY: [0, 1440, 2160], rotateZ: [0, 12, -8, 0], scale: [1, 1.08, 1] }
-          : { rotateY: 0, rotateZ: 0, scale: 1 }
-      }
-      transition={
-        spinning
-          ? { duration: FLIP_DURATION_S, ease: [0.15, 0.75, 0.2, 1] }
-          : { duration: 0 }
-      }
+      style={{ perspective: 900 }}
+      aria-label={shown === "red" ? "Red" : "Black"}
     >
-      <span
-        className="pointer-events-none absolute inset-2 rounded-full border"
-        style={{
-          borderColor: isRed ? "rgba(255,120,80,0.35)" : "rgba(255,255,255,0.12)",
-        }}
-      />
-    </motion.div>
+      <motion.div
+        className={cn("relative h-full w-full", dim)}
+        style={{ transformStyle: "preserve-3d" }}
+        initial={false}
+        animate={
+          spinning
+            ? {
+                rotateY: spinDeg,
+                rotateZ: [0, 10, -6, 0],
+                y: [0, -18, 0],
+              }
+            : { rotateY: restDeg, rotateZ: 0, y: 0 }
+        }
+        transition={
+          spinning
+            ? { duration: FLIP_DURATION_S, ease: [0.12, 0.7, 0.1, 1] }
+            : { duration: 0.25 }
+        }
+      >
+        {/* Red face */}
+        <div
+          className="absolute inset-0 rounded-full"
+          style={coinFaceStyle("red")}
+        />
+        {/* Black face */}
+        <div
+          className="absolute inset-0 rounded-full"
+          style={{
+            ...coinFaceStyle("black"),
+            transform: "rotateY(180deg)",
+          }}
+        />
+      </motion.div>
+    </div>
   );
 }
 
@@ -150,6 +182,7 @@ function CoinflipLobby() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [spinId, setSpinId] = useState<string | null>(null);
+  const [spinLand, setSpinLand] = useState<CoinSide | null>(null);
 
   const load = useCallback(async () => {
     const data = await api<{ games: CoinGame[] }>("/api/coinflip");
@@ -158,9 +191,13 @@ function CoinflipLobby() {
 
   useEffect(() => {
     void load();
-    const id = setInterval(() => void load(), 2000);
+    const id = setInterval(() => {
+      // Don't refresh mid-flip — keeps the coin animation clean
+      if (spinId) return;
+      void load();
+    }, 2000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [load, spinId]);
 
   async function create() {
     setBusy(true);
@@ -190,20 +227,31 @@ function CoinflipLobby() {
     setBusy(true);
     setError(null);
     setSpinId(gameId);
+    setSpinLand(null);
     playCoinFlipSound();
     try {
-      await api("/api/coinflip", {
+      const data = await api<{ game: CoinGame }>("/api/coinflip", {
         method: "POST",
         body: JSON.stringify({ action: "call_bot", gameId }),
       });
+      const land = data.game.resultSide === "black" ? "black" : "red";
+      setSpinLand(land);
+      // Patch local game so joiner shows during the flip
+      setGames((prev) =>
+        prev.map((g) => (g.id === gameId ? { ...g, ...data.game, status: "flipping" } : g)),
+      );
       setTimeout(() => {
-        setMessage("Flip settled — check winnings on Connect Steam.");
+        setMessage(
+          `${land.toUpperCase()} — check winnings on Connect Steam.`,
+        );
         setSpinId(null);
+        setSpinLand(null);
         void refresh();
         void load();
       }, FLIP_DURATION_MS);
     } catch (err) {
       setSpinId(null);
+      setSpinLand(null);
       setError(err instanceof Error ? err.message : "Bot call failed");
     } finally {
       setBusy(false);
@@ -291,13 +339,14 @@ function CoinflipLobby() {
                 />
                 <div className="flex items-center gap-3">
                   <RustCoin
-                    side={
+                    side={g.resultSide || g.creatorSide}
+                    landSide={
                       spinId === g.id
-                        ? g.creatorSide
-                        : g.resultSide || g.creatorSide
+                        ? spinLand ?? undefined
+                        : g.resultSide
                     }
-                    size={spinId === g.id ? "md" : "sm"}
-                    spinning={spinId === g.id}
+                    size={spinId === g.id ? "lg" : "sm"}
+                    spinning={spinId === g.id && spinLand != null}
                   />
                   <p className="font-mono text-[#f0a060]">
                     {formatPrice(g.totalValue)}
