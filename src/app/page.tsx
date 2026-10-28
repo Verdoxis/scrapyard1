@@ -40,6 +40,12 @@ export default function HomePage() {
             >
               Account
             </Link>
+            <Link
+              href="/brand"
+              className="inline-flex items-center px-3 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-[#6b6258] transition hover:text-[#efe6da]"
+            >
+              Logos
+            </Link>
           </div>
         </div>
       </section>
