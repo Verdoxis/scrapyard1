@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { motion } from "framer-motion";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/skins";
 import { HOUSE_RAKE_PERCENT } from "@/lib/config";
@@ -9,15 +8,17 @@ import { useApp } from "@/components/app-provider";
 import { ConnectGate } from "@/components/connect-gate";
 import { InventoryPicker } from "@/components/steam/inventory-picker";
 import { SkinIconRow } from "@/components/skin-icons";
+import {
+  RustCoin,
+  COIN_FLIP_DURATION_MS,
+  type CoinSide,
+} from "@/components/rust-coin";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { playCoinFlipSound } from "@/lib/sfx";
 import type { Skin } from "@/lib/skins";
 
-type CoinSide = "red" | "black";
-
-const FLIP_DURATION_MS = 3200;
-const FLIP_DURATION_S = FLIP_DURATION_MS / 1000;
+const FLIP_DURATION_MS = COIN_FLIP_DURATION_MS;
 
 interface CoinGame {
   id: string;
@@ -36,89 +37,6 @@ interface CoinGame {
   resultSide?: CoinSide;
   creatorItems: Array<{ skin: Skin }>;
   joinerItems: Array<{ skin: Skin }>;
-}
-
-function coinFaceStyle(side: CoinSide): CSSProperties {
-  const isRed = side === "red";
-  return {
-    background: isRed
-      ? "radial-gradient(circle at 35% 30%, #e85a45, #8b1a12 55%, #3a0808)"
-      : "radial-gradient(circle at 35% 30%, #3a3a3a, #121212 55%, #050505)",
-    boxShadow: isRed
-      ? "inset 0 0 0 3px rgba(255,180,140,0.25), 0 8px 20px rgba(140,20,10,0.45)"
-      : "inset 0 0 0 3px rgba(180,180,180,0.2), 0 8px 20px rgba(0,0,0,0.55)",
-    backfaceVisibility: "hidden",
-    WebkitBackfaceVisibility: "hidden",
-  };
-}
-
-function RustCoin({
-  side,
-  selected,
-  size = "md",
-  spinning,
-  landSide,
-}: {
-  side: CoinSide;
-  selected?: boolean;
-  size?: "sm" | "md" | "lg";
-  spinning?: boolean;
-  /** When spinning, flip ends on this face (red or black). */
-  landSide?: CoinSide;
-}) {
-  const dim =
-    size === "lg" ? "h-28 w-28" : size === "sm" ? "h-12 w-12" : "h-20 w-20";
-  const shown = landSide ?? side;
-  // Front face = red (0°), back face = black (180°)
-  const restDeg = shown === "black" ? 180 : 0;
-  const flips = 6;
-  const spinDeg = restDeg + 360 * flips;
-
-  return (
-    <div
-      className={cn(
-        "relative",
-        dim,
-        selected && "rounded-full ring-2 ring-[#f0a060] ring-offset-2 ring-offset-[#0a0806]",
-      )}
-      style={{ perspective: 900 }}
-      aria-label={shown === "red" ? "Red" : "Black"}
-    >
-      <motion.div
-        className={cn("relative h-full w-full", dim)}
-        style={{ transformStyle: "preserve-3d" }}
-        initial={false}
-        animate={
-          spinning
-            ? {
-                rotateY: spinDeg,
-                rotateZ: [0, 10, -6, 0],
-                y: [0, -18, 0],
-              }
-            : { rotateY: restDeg, rotateZ: 0, y: 0 }
-        }
-        transition={
-          spinning
-            ? { duration: FLIP_DURATION_S, ease: [0.12, 0.7, 0.1, 1] }
-            : { duration: 0.25 }
-        }
-      >
-        {/* Red face */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={coinFaceStyle("red")}
-        />
-        {/* Black face */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            ...coinFaceStyle("black"),
-            transform: "rotateY(180deg)",
-          }}
-        />
-      </motion.div>
-    </div>
-  );
 }
 
 function PlayerChip({
