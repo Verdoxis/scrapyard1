@@ -50,7 +50,6 @@ export function LoseModal({
         <p className="mt-2 text-center text-sm text-[#a89888]">
           {loss.resultSide === "red" ? "Red" : "Black"} landed
           {loss.opponentName ? ` · ${loss.opponentName} takes the pot` : ""}.
-          Happens — next one&apos;s yours.
         </p>
         <p className="mt-4 text-center font-mono text-lg text-[#6b6258]">
           Pot was {formatPrice(loss.potValue)}

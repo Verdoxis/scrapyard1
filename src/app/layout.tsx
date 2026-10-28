@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bebas_Neue, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { AgeGate } from "@/components/age-gate";
 import { AppProvider } from "@/components/app-provider";
+import { ClickSoundHost } from "@/components/click-sound";
 import { SiteHeader } from "@/components/site-header";
 import { SkinCursorTipHost } from "@/components/skin-icons";
 import "./globals.css";
@@ -43,12 +44,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col font-sans text-[#f3ebe2]">
         <AgeGate>
           <AppProvider>
+            <ClickSoundHost />
             <SkinCursorTipHost />
             <SiteHeader />
             <div className="flex-1">{children}</div>
             <footer className="border-t border-[rgba(196,92,38,0.15)] px-4 py-6 text-center text-xs text-[#6b6258]">
               18+ only. Gamble responsibly — use Account → Self-ban if you need
-              a break. Demo site; not affiliated with Facepunch or Valve.
+              a break. Demo site; not affiliated with Facepunch or Valve.{" "}
+              <a href="/fair" className="text-[#a89888] hover:text-[#f0a060]">
+                Provably fair
+              </a>
             </footer>
           </AppProvider>
         </AgeGate>

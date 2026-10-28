@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 
 export type CoinSide = "red" | "black";
 
-/** Slower, smoother flip — ~5.5s. */
-const FLIP_MS = 5500;
+/** Slower, smoother flip — ~6s. */
+const FLIP_MS = 6000;
 
 function faceGradient(side: CoinSide) {
   return side === "red"

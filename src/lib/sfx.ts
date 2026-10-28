@@ -20,6 +20,30 @@ function ctx(): AudioContext | null {
   }
 }
 
+/** Soft UI click — short filtered noise tick. */
+export function playClickSound() {
+  const ac = ctx();
+  if (!ac) return;
+  const now = ac.currentTime;
+
+  const osc = ac.createOscillator();
+  const g = ac.createGain();
+  const filter = ac.createBiquadFilter();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(920, now);
+  osc.frequency.exponentialRampToValueAtTime(380, now + 0.04);
+  filter.type = "highpass";
+  filter.frequency.setValueAtTime(400, now);
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.07, now + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+  osc.connect(filter);
+  filter.connect(g);
+  g.connect(ac.destination);
+  osc.start(now);
+  osc.stop(now + 0.07);
+}
+
 /** Soft chime when the coin lands — no MP3. */
 export function playCoinLandDing() {
   const ac = ctx();
@@ -44,8 +68,10 @@ export function playCoinLandDing() {
   tone(1320, 0.04, 0.45, 0.08);
 }
 
-/** Kept as a no-op — old select/coinflip MP3s were removed. */
-export function playSelectSound() {}
+/** Alias used by inventory / legacy call sites. */
+export function playSelectSound() {
+  playClickSound();
+}
 
 /** @deprecated use playCoinLandDing at land time */
 export function playCoinFlipSound() {}

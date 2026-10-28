@@ -27,7 +27,10 @@ import type { Skin } from "@/lib/skins";
 
 const FLIP_DURATION_MS = COIN_FLIP_DURATION_MS;
 /** Keep the landed coin / lobby card visible before clearing. */
-const HOLD_AFTER_LAND_MS = 3200;
+/** Keep the settled lobby card on screen after the coin lands. */
+const HOLD_AFTER_LAND_MS = 5600;
+/** Show the lose modal soon after land (card still holds underneath). */
+const LOSE_MODAL_AFTER_LAND_MS = 700;
 
 interface CoinGame {
   id: string;
@@ -201,6 +204,11 @@ function CoinflipLobby() {
       setHoldingResult(true);
     }, FLIP_DURATION_MS);
 
+    // Lose modal pops quickly; win waits until the hold finishes.
+    window.setTimeout(() => {
+      void showResultAfterFlip(game, "lose");
+    }, FLIP_DURATION_MS + LOSE_MODAL_AFTER_LAND_MS);
+
     window.setTimeout(() => {
       setSpinId(null);
       setSpinLand(null);
@@ -208,7 +216,7 @@ function CoinflipLobby() {
       void (async () => {
         await refresh();
         await load();
-        await showResultAfterFlip(game);
+        await showResultAfterFlip(game, "win");
       })();
     }, FLIP_DURATION_MS + HOLD_AFTER_LAND_MS);
   }
@@ -288,19 +296,26 @@ function CoinflipLobby() {
     isCoinflipStakeAllowed(joinTargetCents, selectedCents);
   const joinYourChance = winChancePercent(selectedCents, joinTargetCents);
 
-  async function showResultAfterFlip(game: CoinGame) {
+  async function showResultAfterFlip(
+    game: CoinGame,
+    only?: "win" | "lose",
+  ) {
     if (!game.resultSide || !user?.id) return;
-    await refresh();
 
     const iAmCreator = game.creatorId === user.id;
     const iAmJoiner = game.joinerId === user.id;
     if (!iAmCreator && !iAmJoiner) return;
 
+    const won = game.winnerId === user.id;
+    if (only === "win" && !won) return;
+    if (only === "lose" && won) return;
+
     const yourStake = iAmCreator
       ? game.creatorItems.reduce((s, i) => s + i.skin.price, 0)
       : game.joinerItems.reduce((s, i) => s + i.skin.price, 0);
 
-    if (game.winnerId === user.id) {
+    if (won) {
+      await refresh();
       const fresh = await api<{
         user: {
           id: string;
@@ -443,15 +458,17 @@ function CoinflipLobby() {
         <h2 className="font-display text-3xl tracking-wide text-[#efe6da]">
           Open flips
         </h2>
-        <Button
+        <button
+          type="button"
           onClick={() => {
             setJoinTarget(null);
+            setSelected([]);
             setDrawerOpen(true);
           }}
-          className="h-11 bg-[#cd412b] px-5 text-[#140c08] hover:bg-[#e25a3c]"
+          className="inline-flex h-12 items-center gap-2 rounded-sm bg-[#cd412b] px-6 font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] hover:shadow-[0_10px_28px_rgba(205,65,43,0.45)]"
         >
           Create flip
-        </Button>
+        </button>
       </div>
 
       {message && (
@@ -469,12 +486,17 @@ function CoinflipLobby() {
             <p className="mt-2 text-sm text-[#a89888]">
               Create one, or wait a moment for bot lobbies to refresh.
             </p>
-            <Button
-              className="mt-5 bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
-              onClick={() => setDrawerOpen(true)}
+            <button
+              type="button"
+              className="mt-5 inline-flex h-12 items-center rounded-sm bg-[#cd412b] px-6 font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c]"
+              onClick={() => {
+                setJoinTarget(null);
+                setSelected([]);
+                setDrawerOpen(true);
+              }}
             >
-              Create your flip
-            </Button>
+              Create flip
+            </button>
           </div>
         ) : (
           openGames.map((g) => {
@@ -645,23 +667,25 @@ function CoinflipLobby() {
                         </div>
 
                         {canJoin && (
-                          <Button
+                          <button
+                            type="button"
                             disabled={busy || revealing}
                             onClick={() => openJoinPicker(g, true)}
-                            className="h-11 w-full max-w-[220px] bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
+                            className="inline-flex h-12 w-full max-w-[220px] items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.3)] transition hover:bg-[#e25a3c] disabled:opacity-50"
                           >
-                            {joining ? "Selecting…" : "Join · quick select"}
-                          </Button>
+                            {joining ? "Opening…" : "Join"}
+                          </button>
                         )}
 
                         {mine && g.status === "open" && (
-                          <Button
+                          <button
+                            type="button"
                             disabled={busy || revealing}
                             onClick={() => void callBot(g.id)}
-                            className="h-10 w-full max-w-[220px] bg-[rgba(205,65,43,0.28)] text-[#f0a060] hover:bg-[rgba(205,65,43,0.42)]"
+                            className="inline-flex h-11 w-full max-w-[220px] items-center justify-center rounded-sm border border-[rgba(240,160,96,0.35)] bg-black/30 text-xs font-semibold uppercase tracking-[0.16em] text-[#f0a060] transition hover:bg-[rgba(205,65,43,0.2)] disabled:opacity-50"
                           >
                             Call bot
-                          </Button>
+                          </button>
                         )}
 
                         {mine && g.status === "awaiting_creator_trade" && (
@@ -788,15 +812,6 @@ function CoinflipLobby() {
                   </p>
                 </div>
                 <SkinIconRow items={joinGame.creatorItems} size="sm" />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 border-[rgba(240,160,96,0.4)] text-[#f0a060]"
-                  onClick={() => openJoinPicker(joinGame, true)}
-                >
-                  Quick select
-                </Button>
               </div>
             ) : (
               <div>
@@ -858,29 +873,51 @@ function CoinflipLobby() {
               {error && <p className="text-sm text-rose-400">{error}</p>}
 
               {joinGame ? (
-                <Button
+                <button
+                  type="button"
                   disabled={busy || !joinInRange}
                   onClick={() => void join(joinGame.id, selected)}
-                  className="h-11 w-full bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
                 >
                   {busy
                     ? "Joining…"
                     : joinInRange
-                      ? `Flip · ${joinYourChance.toFixed(0)}%`
+                      ? `Join · ${joinYourChance.toFixed(0)}%`
                       : selected.length === 0
                         ? "Pick skins"
                         : "Stake too far — adjust"}
-                </Button>
+                </button>
               ) : (
-                <Button
+                <button
+                  type="button"
                   disabled={busy || selected.length === 0}
                   onClick={() => void create()}
-                  className="h-11 w-full bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
+                  className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
                 >
-                  {busy ? "Working…" : "Create lobby"}
-                </Button>
+                  {busy ? "Working…" : "Create flip"}
+                </button>
               )}
             </div>
+
+            {joinGame && (
+              <button
+                type="button"
+                onClick={() => openJoinPicker(joinGame, true)}
+                className="flex w-full items-center justify-between gap-3 rounded-sm border border-[rgba(240,160,96,0.55)] bg-[rgba(205,65,43,0.16)] px-4 py-3.5 text-left transition hover:border-[#f0a060] hover:bg-[rgba(205,65,43,0.24)]"
+              >
+                <span>
+                  <span className="block font-display text-lg tracking-wide text-[#efe6da]">
+                    Quick select
+                  </span>
+                  <span className="mt-0.5 block text-xs text-[#a89888]">
+                    Auto-pick skins near {formatPrice(joinTargetCents)}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-sm bg-[#cd412b] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#140c08]">
+                  Fill
+                </span>
+              </button>
+            )}
 
             <InventoryPicker
               items={inventory}
