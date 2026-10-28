@@ -18,16 +18,36 @@ export function getBotMode(): "mock" | "live" {
   return process.env.STEAM_BOT_MODE === "live" ? "live" : "mock";
 }
 
+function liveCredentialsPresent() {
+  return Boolean(
+    process.env.STEAM_ACCOUNT_NAME &&
+      process.env.STEAM_PASSWORD &&
+      process.env.STEAM_SHARED_SECRET &&
+      process.env.STEAM_IDENTITY_SECRET &&
+      process.env.STEAM_BOT_STEAM_ID,
+  );
+}
+
 export function botStatus() {
   const mode = getBotMode();
+  if (mode === "mock") {
+    return {
+      mode,
+      ready: true,
+      botName: process.env.STEAM_BOT_NAME || "Scrapyard Bot (Mock)",
+      message:
+        "Mock bot: trade offers auto-accept so you can play end-to-end without a real Steam bot.",
+    };
+  }
+
+  const ready = liveCredentialsPresent();
   return {
     mode,
-    ready: mode === "mock",
-    botName: mode === "mock" ? "Scrapyard Bot (Mock)" : "Scrapyard Bot",
-    message:
-      mode === "mock"
-        ? "Mock bot: trade offers auto-accept so you can play without a real Steam account."
-        : "Live bot mode — wire sendLiveTrade() with your Steam credentials.",
+    ready,
+    botName: process.env.STEAM_BOT_NAME || "Scrapyard Bot",
+    message: ready
+      ? "Live mode credentials detected. Hook sendLiveTrade() / offer polling to steamcommunity before taking real deposits."
+      : "Live mode is on, but Steam bot env vars are incomplete — fill .env from .env.example.",
   };
 }
 

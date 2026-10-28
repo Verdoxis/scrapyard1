@@ -172,6 +172,7 @@ function CoinflipLobby() {
   const [spinLand, setSpinLand] = useState<CoinSide | null>(null);
   const [holdingResult, setHoldingResult] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [portalReady, setPortalReady] = useState(false);
   const [joinTarget, setJoinTarget] = useState<string | null>(null);
   const [win, setWin] = useState<WinPayload | null>(null);
   const [loss, setLoss] = useState<LosePayload | null>(null);
@@ -242,6 +243,10 @@ function CoinflipLobby() {
   }, []);
 
   useEffect(() => {
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
     void load();
     const id = setInterval(() => {
       if (spinId) return;
@@ -249,6 +254,15 @@ function CoinflipLobby() {
     }, 2000);
     return () => clearInterval(id);
   }, [load, spinId]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [drawerOpen]);
 
   const selectedCents = useMemo(
     () => selectionValue(inventory, selected),
@@ -794,13 +808,13 @@ function CoinflipLobby() {
       )}
 
       {drawerOpen &&
-        typeof document !== "undefined" &&
+        portalReady &&
         createPortal(
-          <div className="fixed inset-0 z-[200] flex justify-end">
+          <div className="fixed inset-0 z-[9999] flex justify-end">
             <button
               type="button"
               aria-label="Close panel"
-              className="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
+              className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
               onClick={() => {
                 setDrawerOpen(false);
                 setJoinTarget(null);
@@ -809,7 +823,7 @@ function CoinflipLobby() {
             <aside
               role="dialog"
               aria-modal
-              className="relative z-[201] flex h-full w-full max-w-md translate-x-0 flex-col border-l border-[rgba(205,65,43,0.45)] bg-[rgba(12,9,7,0.99)] shadow-[-24px_0_60px_rgba(0,0,0,0.65)] animate-in slide-in-from-right duration-300"
+              className="relative z-[10000] flex h-full w-full max-w-md flex-col border-l border-[rgba(205,65,43,0.45)] bg-[rgba(12,9,7,0.99)] shadow-[-24px_0_60px_rgba(0,0,0,0.65)]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between border-b border-[rgba(205,65,43,0.25)] px-5 py-4">

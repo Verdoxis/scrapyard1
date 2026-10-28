@@ -1,39 +1,74 @@
 # SCRAPYARD
 
-Rust-themed skin coinflip & jackpot. Connect Steam (auto profile pic), browse skins with **Steam market / economy icons**, chat with whoever is online, and gamble via the trade bot. **5% house rake** on every settled pot.
+Rust-themed skin coinflip & jackpot. Connect Steam, stake skins, verify every roll on **Fair & Terms**. House cut is a small item when one fits (~5%); tiny pots often have no cut.
 
-Logo: `public/logo.svg`. Item art is cached under `public/items/steam/` from Steam economy URLs (via SCMM metadata).
+Discord support: https://discord.gg/YU99W9nF5G
 
-## Run
+## Quick start (works today)
 
 ```bash
 npm install
+cp .env.example .env   # leave STEAM_BOT_MODE=mock
 npm run dev
 ```
 
 Open [http://127.0.0.1:43127](http://127.0.0.1:43127).
 
-## Flow
+1. Age gate → **Account** → paste a Steam trade URL (demo URL on the page works in mock).
+2. Inventory fills with catalog skins.
+3. **Coinflip** / **Jackpot** — pick skins, accept mock trades, play.
 
-1. **Connect Steam** — follow on-page directions, paste your trade URL (demo URL works in mock mode).
-2. **Inventory loads** on screen (mock Steam inventory in demo).
-3. **Coinflip** or **Jackpot** — pick skins → bot sends trade → accept → skins enter the game.
-4. Settled pots pay the winner; lowest-value skins covering ~5% go to the house.
+Production-style local run:
+
+```bash
+npm run build
+npm start
+```
+
+Game state persists under `.data/scrapyard.json` across restarts.
+
+## Put it into action
+
+| Step | What to do |
+|------|------------|
+| 1. Repo | Create your real GitHub/Origin repo from this project (Create repo in Cursor if you have not yet). |
+| 2. Host | Deploy the Next.js app (Vercel, a VPS, Docker, etc.) with Node 20+. |
+| 3. Env | Copy `.env.example` → `.env` on the host. Start with `STEAM_BOT_MODE=mock` until the bot is wired. |
+| 4. Domain | Point DNS at the host; use HTTPS. |
+| 5. Live bot | Set `STEAM_BOT_MODE=live` and fill Steam bot secrets (see below). Implement real offer send/accept in `src/lib/steam-bot.ts`. |
+| 6. Legal | Confirm skin gambling is legal for you and your players. Keep 18+ / self-ban / Fair & Terms linked. |
+
+### Live Steam bot checklist
+
+Required env when `STEAM_BOT_MODE=live`:
+
+- `STEAM_ACCOUNT_NAME`
+- `STEAM_PASSWORD`
+- `STEAM_SHARED_SECRET` (Steam Guard mobile)
+- `STEAM_IDENTITY_SECRET` (confirm trades)
+- `STEAM_BOT_STEAM_ID`
+- `STEAM_BOT_NAME` (optional display)
+
+Until `sendLiveTrade()` and offer polling are implemented against those credentials, keep mock mode for demos. Live mode currently refuses to pretend it is ready unless all vars are set.
+
+### Ops notes
+
+- Persist file: `.data/scrapyard.json` (gitignored). Back it up if you care about history.
+- In-memory Maps hydrate from that file on boot.
+- Mock inventory is still synthetic catalog art — live mode must pull real asset IDs from Steam inventory APIs.
+- Not affiliated with Facepunch or Valve. Follow Steam / site ToS.
 
 ## Games
 
-| Game | How it works |
-|------|----------------|
-| **Coinflip** | Create a lobby with skins. After the bot trade accepts, call a bot opponent (or a real joiner). 50/50 flip. |
-| **Jackpot** | Deposit skins into a timed pot. Chance ∝ deposit value. Rival bots fill the pot in demo so rounds can complete. |
+| Game | Flow |
+|------|------|
+| **Coinflip** | Create or join with skins → trade into escrow → flip → winner claims payout trade. |
+| **Jackpot** | Deposit into the timed pot → chance ∝ value → spin → payout trade. |
 
-## Steam bot
+## Scripts
 
-- **Mock (default):** trades auto-accept in a few seconds.
-- **Live:** set `STEAM_BOT_MODE=live` and Steam env vars (see `.env.example`), then implement live sending in `src/lib/steam-bot.ts`.
-
-## Notes
-
-- In-memory state resets when the server restarts.
-- Fictional skin names / SVG glyphs — not official Rust art.
-- Real operation needs licensing and Steam / Facepunch ToS compliance.
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Dev server on `127.0.0.1:43127` |
+| `npm run build` | Production build |
+| `npm start` | Serve production build on `43127` |

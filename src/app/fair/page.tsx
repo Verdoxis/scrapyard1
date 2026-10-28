@@ -175,8 +175,11 @@ export default function FairPage() {
             have <span className="text-[#efe6da]">no cut</span>.
           </p>
           <p>
-            Skins move through mock Steam-style trades on this demo. Do not
-            deposit anything you cannot afford to lose. Use{" "}
+            Default install runs in{" "}
+            <span className="text-[#efe6da]">mock trade mode</span> so you can
+            rehearse the full loop. Live Steam bot mode needs real credentials
+            and a wired trade sender — see the project README. Do not stake
+            anything you cannot afford to lose. Use{" "}
             <Link href="/account" className="text-[#f0a060] hover:underline">
               Account → Self-ban
             </Link>{" "}

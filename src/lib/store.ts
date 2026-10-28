@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { HOUSE_RAKE_PERCENT } from "./config";
 import { generateServerSeed, hashServerSeed } from "./fairness";
+import { loadSnapshot, scheduleSave } from "./persist";
 import { SKINS, type Skin } from "./skins";
 
 export type TradeStatus =
@@ -163,20 +164,7 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV8?: GlobalState };
-
-function state(): GlobalState {
-  if (!g.__scrapyardV8) {
-    g.__scrapyardV8 = {
-      users: new Map(),
-      coinflips: new Map(),
-      jackpot: null,
-      houseBank: [],
-      houseEarnings: 0,
-    };
-  }
-  return g.__scrapyardV8;
-}
+const g = globalThis as unknown as { __scrapyardV9?: GlobalState };
 
 export function emptyStats(): UserStats {
   return {
@@ -190,6 +178,52 @@ export function emptyStats(): UserStats {
     jackpotsPlayed: 0,
     biggestWin: 0,
   };
+}
+
+function hydrateState(): GlobalState {
+  const blank: GlobalState = {
+    users: new Map(),
+    coinflips: new Map(),
+    jackpot: null,
+    houseBank: [],
+    houseEarnings: 0,
+  };
+  const snap = loadSnapshot();
+  if (!snap) return blank;
+  for (const user of snap.users) {
+    blank.users.set(user.id, {
+      ...user,
+      stats: user.stats ?? emptyStats(),
+      gameHistory: user.gameHistory ?? [],
+      selfBanUntil: user.selfBanUntil ?? null,
+    });
+  }
+  for (const game of snap.coinflips ?? []) {
+    blank.coinflips.set(game.id, game);
+  }
+  blank.jackpot = snap.jackpot ?? null;
+  blank.houseBank = snap.houseBank ?? [];
+  blank.houseEarnings = snap.houseEarnings ?? 0;
+  return blank;
+}
+
+function persistState(s: GlobalState) {
+  scheduleSave({
+    version: 1,
+    savedAt: Date.now(),
+    users: [...s.users.values()],
+    coinflips: [...s.coinflips.values()],
+    jackpot: s.jackpot,
+    houseBank: s.houseBank,
+    houseEarnings: s.houseEarnings,
+  });
+}
+
+function state(): GlobalState {
+  if (!g.__scrapyardV9) {
+    g.__scrapyardV9 = hydrateState();
+  }
+  return g.__scrapyardV9;
 }
 
 export const DEMO_USER_ID = "demo-survivor";
@@ -332,7 +366,9 @@ export function getUser(id = DEMO_USER_ID): UserState {
 }
 
 export function saveUser(user: UserState) {
-  state().users.set(user.id, user);
+  const s = state();
+  s.users.set(user.id, user);
+  persistState(s);
 }
 
 export function getSkinOrThrow(skinId: string): Skin {
@@ -394,7 +430,9 @@ export function getCoinflip(id: string) {
 }
 
 export function saveCoinflip(game: CoinflipGame) {
-  state().coinflips.set(game.id, game);
+  const s = state();
+  s.coinflips.set(game.id, game);
+  persistState(s);
 }
 
 const SETTLED_GRACE_MS = 14_000;
@@ -416,7 +454,9 @@ export function getJackpot(): JackpotRound {
 }
 
 export function saveJackpot(round: JackpotRound) {
-  state().jackpot = round;
+  const s = state();
+  s.jackpot = round;
+  persistState(s);
 }
 
 function createJackpotRound(): JackpotRound {
@@ -447,6 +487,7 @@ export function addHouseItems(items: EscrowItem[], value: number) {
   const s = state();
   s.houseBank.push(...items);
   s.houseEarnings += value;
+  persistState(s);
 }
 
 export function publicUser(user: UserState) {
