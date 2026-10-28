@@ -97,7 +97,9 @@ export function WinModal({
             {formatPrice(win.potValue - win.rakeValue)}
           </p>
           <p className="text-center text-xs text-[#8a7d70]">
-            after {formatPrice(win.rakeValue)} house cut
+            {win.rakeValue > 0
+              ? `after ${formatPrice(win.rakeValue)} house cut (small item)`
+              : "full pot — no small item for a house cut"}
           </p>
 
           <div className="mt-4 flex justify-center sm:mt-5">

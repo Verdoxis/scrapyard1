@@ -54,6 +54,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <a href="/fair" className="text-[#a89888] hover:text-[#f0a060]">
                 Provably fair
               </a>
+              {" · "}
+              <a
+                href="/fair#terms"
+                className="text-[#a89888] hover:text-[#f0a060]"
+              >
+                Terms
+              </a>
             </footer>
           </AppProvider>
         </AgeGate>
