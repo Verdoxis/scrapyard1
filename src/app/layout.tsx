@@ -3,6 +3,7 @@ import { Bebas_Neue, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { AgeGate } from "@/components/age-gate";
 import { AppProvider } from "@/components/app-provider";
 import { SiteHeader } from "@/components/site-header";
+import { SkinCursorTipHost } from "@/components/skin-icons";
 import "./globals.css";
 
 const display = Bebas_Neue({
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col font-sans text-[#f3ebe2]">
         <AgeGate>
           <AppProvider>
+            <SkinCursorTipHost />
             <SiteHeader />
             <div className="flex-1">{children}</div>
             <footer className="border-t border-[rgba(196,92,38,0.15)] px-4 py-6 text-center text-xs text-[#6b6258]">
