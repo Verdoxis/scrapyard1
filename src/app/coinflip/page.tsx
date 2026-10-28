@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/skins";
 import { HOUSE_RAKE_PERCENT } from "@/lib/config";
@@ -15,7 +16,6 @@ import {
 } from "@/components/rust-coin";
 import { WinModal, type WinPayload } from "@/components/win-modal";
 import { LoseModal, type LosePayload } from "@/components/lose-modal";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { playCoinLandDing } from "@/lib/sfx";
 import { pickAssetIdsNearValue, selectionValue } from "@/lib/pick-skins";
@@ -26,7 +26,6 @@ import {
 import type { Skin } from "@/lib/skins";
 
 const FLIP_DURATION_MS = COIN_FLIP_DURATION_MS;
-/** Keep the landed coin / lobby card visible before clearing. */
 /** Keep the settled lobby card on screen after the coin lands. */
 const HOLD_AFTER_LAND_MS = 5600;
 /** Show the lose modal soon after land (card still holds underneath). */
@@ -269,21 +268,34 @@ function CoinflipLobby() {
       setSelected([]);
       return;
     }
-    const target = creatorWager(game);
-    const ids = pickAssetIdsNearValue(inventory, target);
-    setSelected(ids);
-    if (ids.length === 0) {
-      setError(
-        `No unlocked skins near ${formatPrice(target)}. Restock on Account or pick manually.`,
-      );
-      return;
+    try {
+      const target = creatorWager(game);
+      const ids = pickAssetIdsNearValue(inventory, target);
+      setSelected(ids);
+      if (ids.length === 0) {
+        setError(
+          `No unlocked skins near ${formatPrice(target)}. Restock on Account or pick manually.`,
+        );
+        return;
+      }
+      const value = selectionValue(inventory, ids);
+      if (!isCoinflipStakeAllowed(target, value)) {
+        setError(
+          `Adjust skins so your stake is closer to ${formatPrice(target)}.`,
+        );
+      }
+    } catch {
+      setSelected([]);
+      setError("Could not auto-pick skins — choose them below.");
     }
-    const value = selectionValue(inventory, ids);
-    if (!isCoinflipStakeAllowed(target, value)) {
-      setError(`Adjust skins so your stake is closer to ${formatPrice(target)}.`);
-      return;
-    }
+  }
+
+  function openCreateDrawer() {
+    setJoinTarget(null);
+    setSelected([]);
+    setError(null);
     setMessage(null);
+    setDrawerOpen(true);
   }
 
   const joinGame = joinTarget
@@ -460,11 +472,7 @@ function CoinflipLobby() {
         </h2>
         <button
           type="button"
-          onClick={() => {
-            setJoinTarget(null);
-            setSelected([]);
-            setDrawerOpen(true);
-          }}
+          onClick={openCreateDrawer}
           className="inline-flex h-12 items-center gap-2 rounded-sm bg-[#cd412b] px-6 font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] hover:shadow-[0_10px_28px_rgba(205,65,43,0.45)]"
         >
           Create flip
@@ -489,11 +497,7 @@ function CoinflipLobby() {
             <button
               type="button"
               className="mt-5 inline-flex h-12 items-center rounded-sm bg-[#cd412b] px-6 font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c]"
-              onClick={() => {
-                setJoinTarget(null);
-                setSelected([]);
-                setDrawerOpen(true);
-              }}
+              onClick={openCreateDrawer}
             >
               Create flip
             </button>
@@ -670,8 +674,12 @@ function CoinflipLobby() {
                           <button
                             type="button"
                             disabled={busy || revealing}
-                            onClick={() => openJoinPicker(g, true)}
-                            className="inline-flex h-12 w-full max-w-[220px] items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.3)] transition hover:bg-[#e25a3c] disabled:opacity-50"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              openJoinPicker(g, true);
+                            }}
+                            className="relative z-10 inline-flex h-12 w-full max-w-[220px] items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.3)] transition hover:bg-[#e25a3c] disabled:opacity-50"
                           >
                             {joining ? "Opening…" : "Join"}
                           </button>
@@ -755,185 +763,184 @@ function CoinflipLobby() {
         </section>
       )}
 
-      {/* Create flip side drawer */}
-      <div
-        className={cn(
-          "fixed inset-0 z-50 transition",
-          drawerOpen ? "pointer-events-auto" : "pointer-events-none",
-        )}
-      >
-        <button
-          type="button"
-          aria-label="Close create panel"
-          className={cn(
-            "absolute inset-0 bg-black/60 transition-opacity",
-            drawerOpen ? "opacity-100" : "opacity-0",
-          )}
-          onClick={() => setDrawerOpen(false)}
-        />
-        <aside
-          className={cn(
-            "absolute right-0 top-0 flex h-full w-full max-w-md flex-col border-l border-[rgba(205,65,43,0.4)] bg-[rgba(12,9,7,0.98)] shadow-[-20px_0_60px_rgba(0,0,0,0.55)] transition-transform duration-300",
-            drawerOpen ? "translate-x-0" : "translate-x-full",
-          )}
-        >
-          <div className="flex items-center justify-between border-b border-[rgba(205,65,43,0.25)] px-5 py-4">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.24em] text-[#cd412b]">
-                {joinGame ? "Join lobby" : "New lobby"}
-              </p>
-              <h3 className="font-display text-2xl text-[#efe6da]">
-                {joinGame ? `Join ${joinGame.creatorName}` : "Create flip"}
-              </h3>
-            </div>
+      {drawerOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[200] flex justify-end">
             <button
               type="button"
+              aria-label="Close panel"
+              className="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
               onClick={() => {
                 setDrawerOpen(false);
                 setJoinTarget(null);
               }}
-              className="text-sm text-[#a89888] hover:text-[#efe6da]"
+            />
+            <aside
+              role="dialog"
+              aria-modal
+              className="relative z-[201] flex h-full w-full max-w-md translate-x-0 flex-col border-l border-[rgba(205,65,43,0.45)] bg-[rgba(12,9,7,0.99)] shadow-[-24px_0_60px_rgba(0,0,0,0.65)] animate-in slide-in-from-right duration-300"
+              onClick={(e) => e.stopPropagation()}
             >
-              Close
-            </button>
-          </div>
-
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            {joinGame ? (
-              <div className="rounded-sm border border-[rgba(205,65,43,0.3)] bg-black/30 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <PlayerChip
-                    name={joinGame.creatorName}
-                    avatar={joinGame.creatorAvatar}
-                    side={joinGame.creatorSide}
-                  />
-                  <p className="font-mono text-[#f0a060]">
-                    {formatPrice(joinTargetCents)}
-                  </p>
-                </div>
-                <SkinIconRow items={joinGame.creatorItems} size="sm" />
-              </div>
-            ) : (
-              <div>
-                <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
-                  Your side
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["red", "black"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSide(s)}
-                      className={cn(
-                        "flex flex-col items-center gap-2 rounded-sm border p-3",
-                        side === s
-                          ? "border-[#f0a060] bg-[rgba(205,65,43,0.12)]"
-                          : "border-[rgba(255,255,255,0.08)] bg-black/30",
-                      )}
-                    >
-                      <RustCoin side={s} selected={side === s} size="sm" />
-                      <span className="font-display text-lg tracking-wider text-[#efe6da]">
-                        {s.toUpperCase()}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="sticky top-0 z-10 space-y-3 rounded-sm border border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.96)] p-3 backdrop-blur">
-              <div className="flex items-end justify-between gap-3">
+              <div className="flex items-center justify-between border-b border-[rgba(205,65,43,0.25)] px-5 py-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
-                    Your stake
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-[#cd412b]">
+                    {joinGame ? "Join lobby" : "New lobby"}
                   </p>
-                  <p className="font-mono text-lg text-[#f0a060]">
-                    {formatPrice(selectedCents)}
-                  </p>
+                  <h3 className="font-display text-2xl text-[#efe6da]">
+                    {joinGame ? `Join ${joinGame.creatorName}` : "Create flip"}
+                  </h3>
                 </div>
-                {joinGame && selected.length > 0 && (
-                  <div className="text-right">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
-                      Win chance
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDrawerOpen(false);
+                    setJoinTarget(null);
+                  }}
+                  className="text-sm text-[#a89888] hover:text-[#efe6da]"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+                {joinGame ? (
+                  <div className="rounded-sm border border-[rgba(205,65,43,0.3)] bg-black/30 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <PlayerChip
+                        name={joinGame.creatorName}
+                        avatar={joinGame.creatorAvatar}
+                        side={joinGame.creatorSide}
+                      />
+                      <p className="font-mono text-[#f0a060]">
+                        {formatPrice(joinTargetCents)}
+                      </p>
+                    </div>
+                    <SkinIconRow items={joinGame.creatorItems} size="sm" />
+                  </div>
+                ) : (
+                  <div>
+                    <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#8a7d70]">
+                      Your side
                     </p>
-                    <p
-                      className={cn(
-                        "font-display text-3xl tracking-wide",
-                        joinInRange ? "text-[#efe6da]" : "text-rose-400",
-                      )}
-                    >
-                      {joinYourChance.toFixed(0)}%
-                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(["red", "black"] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setSide(s)}
+                          className={cn(
+                            "flex flex-col items-center gap-2 rounded-sm border p-3",
+                            side === s
+                              ? "border-[#f0a060] bg-[rgba(205,65,43,0.12)]"
+                              : "border-[rgba(255,255,255,0.08)] bg-black/30",
+                          )}
+                        >
+                          <RustCoin side={s} selected={side === s} size="sm" />
+                          <span className="font-display text-lg tracking-wider text-[#efe6da]">
+                            {s.toUpperCase()}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                <div className="sticky top-0 z-10 space-y-3 rounded-sm border border-[rgba(205,65,43,0.35)] bg-[rgba(18,14,10,0.96)] p-3 backdrop-blur">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
+                        Your stake
+                      </p>
+                      <p className="font-mono text-lg text-[#f0a060]">
+                        {formatPrice(selectedCents)}
+                      </p>
+                    </div>
+                    {joinGame && selected.length > 0 && (
+                      <div className="text-right">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-[#8a7d70]">
+                          Win chance
+                        </p>
+                        <p
+                          className={cn(
+                            "font-display text-3xl tracking-wide",
+                            joinInRange ? "text-[#efe6da]" : "text-rose-400",
+                          )}
+                        >
+                          {joinYourChance.toFixed(0)}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {message && (
+                    <p className="text-sm text-emerald-400">{message}</p>
+                  )}
+                  {error && <p className="text-sm text-rose-400">{error}</p>}
+
+                  {joinGame ? (
+                    <button
+                      type="button"
+                      disabled={busy || !joinInRange}
+                      onClick={() => void join(joinGame.id, selected)}
+                      className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
+                    >
+                      {busy
+                        ? "Joining…"
+                        : joinInRange
+                          ? `Join · ${joinYourChance.toFixed(0)}%`
+                          : selected.length === 0
+                            ? "Pick skins"
+                            : "Stake too far — adjust"}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy || selected.length === 0}
+                      onClick={() => void create()}
+                      className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
+                    >
+                      {busy ? "Working…" : "Create flip"}
+                    </button>
+                  )}
+                </div>
+
+                {joinGame && (
+                  <button
+                    type="button"
+                    onClick={() => openJoinPicker(joinGame, true)}
+                    className="flex w-full items-center justify-between gap-3 rounded-sm border border-[rgba(240,160,96,0.55)] bg-[rgba(205,65,43,0.16)] px-4 py-3.5 text-left transition hover:border-[#f0a060] hover:bg-[rgba(205,65,43,0.24)]"
+                  >
+                    <span>
+                      <span className="block font-display text-lg tracking-wide text-[#efe6da]">
+                        Quick select
+                      </span>
+                      <span className="mt-0.5 block text-xs text-[#a89888]">
+                        Auto-pick skins near {formatPrice(joinTargetCents)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-sm bg-[#cd412b] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#140c08]">
+                      Fill
+                    </span>
+                  </button>
+                )}
+
+                <InventoryPicker
+                  items={inventory}
+                  selected={selected}
+                  onToggle={(id) =>
+                    setSelected((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((x) => x !== id)
+                        : [...prev, id],
+                    )
+                  }
+                  emptyText="No unlocked skins — restock on Account."
+                />
               </div>
-              {message && (
-                <p className="text-sm text-emerald-400">{message}</p>
-              )}
-              {error && <p className="text-sm text-rose-400">{error}</p>}
-
-              {joinGame ? (
-                <button
-                  type="button"
-                  disabled={busy || !joinInRange}
-                  onClick={() => void join(joinGame.id, selected)}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
-                >
-                  {busy
-                    ? "Joining…"
-                    : joinInRange
-                      ? `Join · ${joinYourChance.toFixed(0)}%`
-                      : selected.length === 0
-                        ? "Pick skins"
-                        : "Stake too far — adjust"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busy || selected.length === 0}
-                  onClick={() => void create()}
-                  className="inline-flex h-12 w-full items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.35)] transition hover:bg-[#e25a3c] disabled:opacity-45"
-                >
-                  {busy ? "Working…" : "Create flip"}
-                </button>
-              )}
-            </div>
-
-            {joinGame && (
-              <button
-                type="button"
-                onClick={() => openJoinPicker(joinGame, true)}
-                className="flex w-full items-center justify-between gap-3 rounded-sm border border-[rgba(240,160,96,0.55)] bg-[rgba(205,65,43,0.16)] px-4 py-3.5 text-left transition hover:border-[#f0a060] hover:bg-[rgba(205,65,43,0.24)]"
-              >
-                <span>
-                  <span className="block font-display text-lg tracking-wide text-[#efe6da]">
-                    Quick select
-                  </span>
-                  <span className="mt-0.5 block text-xs text-[#a89888]">
-                    Auto-pick skins near {formatPrice(joinTargetCents)}
-                  </span>
-                </span>
-                <span className="shrink-0 rounded-sm bg-[#cd412b] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#140c08]">
-                  Fill
-                </span>
-              </button>
-            )}
-
-            <InventoryPicker
-              items={inventory}
-              selected={selected}
-              onToggle={(id) =>
-                setSelected((prev) =>
-                  prev.includes(id)
-                    ? prev.filter((x) => x !== id)
-                    : [...prev, id],
-                )
-              }
-              emptyText="No unlocked skins — restock on Account."
-            />
-          </div>
-        </aside>
-      </div>
+            </aside>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
