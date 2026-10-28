@@ -2,23 +2,32 @@
 /**
  * Renders Scrapyard mark → static PNG + Discord Nitro looping GIF.
  * Discord Nitro avatars look best at 128–512px, looping, under ~1MB.
+ * Mark is gear + rust hub only (no orange swoop).
  */
-import { mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  copyFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import sharp from "sharp";
 
 const OUT = "/opt/cursor/artifacts";
+const PUB = "/workspace/public";
 const TMP = "/tmp/scrapyard-logo-frames";
 const SIZE = 256;
-const FRAMES = 36; // full rotation — smooth at Discord's display size
-const FPS = 18; // ~2s loop
+const FRAMES = 36;
+const FPS = 18;
 
 mkdirSync(OUT, { recursive: true });
+rmSync(TMP, { recursive: true, force: true });
 mkdirSync(TMP, { recursive: true });
 
-function logoSvg({ rotationDeg = 0, pulse = 1, rustGlow = 0.9 } = {}) {
-  // pulse: hub scale; rustGlow: scratch opacity
+function logoSvg({ rotationDeg = 0, pulse = 1, glow = 0.9 } = {}) {
   const hubR = (15 * pulse).toFixed(2);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 128 128" fill="none">
@@ -33,8 +42,8 @@ function logoSvg({ rotationDeg = 0, pulse = 1, rustGlow = 0.9 } = {}) {
       <stop offset="1" stop-color="#8a7d70"/>
     </linearGradient>
     <radialGradient id="glow" cx="64" cy="64" r="52" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#c45c26" stop-opacity="${(0.22 * rustGlow).toFixed(3)}"/>
-      <stop offset="0.55" stop-color="#c45c26" stop-opacity="0.06"/>
+      <stop stop-color="#c45c26" stop-opacity="${(0.18 * glow).toFixed(3)}"/>
+      <stop offset="0.55" stop-color="#c45c26" stop-opacity="0.05"/>
       <stop offset="1" stop-color="#c45c26" stop-opacity="0"/>
     </radialGradient>
   </defs>
@@ -46,36 +55,37 @@ function logoSvg({ rotationDeg = 0, pulse = 1, rustGlow = 0.9 } = {}) {
       <path d="M64 18v14M64 96v14M18 64h14M96 64h14"/>
       <path d="M31 31l10 10M87 87l10 10M87 31l-10 10M31 87l10-10"/>
     </g>
-    <path d="M78 28c-8 14-6 22 2 34-10 4-18 14-22 28" stroke="#f0a060" stroke-width="3.5" stroke-linecap="round" opacity="${rustGlow.toFixed(3)}"/>
   </g>
 </svg>`;
 }
 
-// Static logo (clean, no glow) — SVG + PNG
-const staticSvg = readFileSync("/workspace/public/logo.svg", "utf8");
+const staticSvg = readFileSync(join(PUB, "logo.svg"), "utf8");
 writeFileSync(join(OUT, "scrapyard-logo.svg"), staticSvg);
+writeFileSync(join(PUB, "scrapyard-logo.svg"), staticSvg);
 
-await sharp(Buffer.from(logoSvg({ rotationDeg: 0, pulse: 1, rustGlow: 0.9 })), {
-  density: 300,
-})
+await sharp(Buffer.from(staticSvg), { density: 300 })
   .resize(SIZE, SIZE)
   .png()
   .toFile(join(OUT, "scrapyard-logo.png"));
 
-await sharp(Buffer.from(logoSvg({ rotationDeg: 0, pulse: 1, rustGlow: 0.9 })), {
-  density: 300,
-})
+await sharp(Buffer.from(staticSvg), { density: 300 })
   .resize(512, 512)
   .png()
   .toFile(join(OUT, "scrapyard-logo-512.png"));
 
-// Animated frames: gear rotates, hub + scratch breathe slightly
+copyFileSync(join(OUT, "scrapyard-logo.png"), join(PUB, "scrapyard-logo.png"));
+copyFileSync(
+  join(OUT, "scrapyard-logo-512.png"),
+  join(PUB, "scrapyard-logo-512.png"),
+);
+
 for (let i = 0; i < FRAMES; i++) {
   const t = i / FRAMES;
   const rot = t * 360;
-  const pulse = 1 + 0.06 * Math.sin(t * Math.PI * 2);
-  const rustGlow = 0.75 + 0.25 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 + 0.4));
-  const buf = Buffer.from(logoSvg({ rotationDeg: rot, pulse, rustGlow }));
+  const pulse = 1 + 0.05 * Math.sin(t * Math.PI * 2);
+  const glow =
+    0.75 + 0.25 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 + 0.4));
+  const buf = Buffer.from(logoSvg({ rotationDeg: rot, pulse, glow }));
   await sharp(buf, { density: 220 })
     .resize(SIZE, SIZE)
     .png()
@@ -85,7 +95,6 @@ for (let i = 0; i < FRAMES; i++) {
 const gifPath = join(OUT, "scrapyard-logo-discord.gif");
 const palette = join(TMP, "palette.png");
 
-// High-quality palette GIF with transparency (Discord dark theme friendly)
 execFileSync(
   "ffmpeg",
   [
@@ -124,7 +133,6 @@ execFileSync(
   { stdio: "inherit" },
 );
 
-// Also a tighter 128px emoji-sized version for Nitro custom emoji
 const gifEmoji = join(OUT, "scrapyard-logo-emoji.gif");
 const tmp128 = join(TMP, "128");
 mkdirSync(tmp128, { recursive: true });
@@ -172,6 +180,18 @@ execFileSync(
   { stdio: "inherit" },
 );
 
+copyFileSync(gifPath, join(PUB, "scrapyard-logo-discord.gif"));
+copyFileSync(gifEmoji, join(PUB, "scrapyard-logo-emoji.gif"));
+
+execFileSync(
+  "bash",
+  [
+    "-lc",
+    `cd ${PUB} && rm -f scrapyard-logos.zip && zip -9 scrapyard-logos.zip logo.svg scrapyard-logo.svg scrapyard-logo.png scrapyard-logo-512.png scrapyard-logo-discord.gif scrapyard-logo-emoji.gif && cp scrapyard-logos.zip ${OUT}/scrapyard-logos.zip`,
+  ],
+  { stdio: "inherit" },
+);
+
 rmSync(TMP, { recursive: true, force: true });
 
 for (const f of [
@@ -180,8 +200,7 @@ for (const f of [
   "scrapyard-logo-512.png",
   "scrapyard-logo-discord.gif",
   "scrapyard-logo-emoji.gif",
+  "scrapyard-logos.zip",
 ]) {
-  const p = join(OUT, f);
-  const st = statSync(p);
-  console.log(`${f}\t${(st.size / 1024).toFixed(1)} KB`);
+  console.log(`${f}\t${(statSync(join(PUB, f)).size / 1024).toFixed(1)} KB`);
 }

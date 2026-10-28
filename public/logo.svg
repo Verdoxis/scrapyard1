@@ -17,5 +17,4 @@
     <path d="M64 18v14M64 96v14M18 64h14M96 64h14"/>
     <path d="M31 31l10 10M87 87l10 10M87 31l-10 10M31 87l10-10"/>
   </g>
-  <path d="M78 28c-8 14-6 22 2 34-10 4-18 14-22 28" stroke="#f0a060" stroke-width="3.5" stroke-linecap="round" opacity="0.9"/>
 </svg>
