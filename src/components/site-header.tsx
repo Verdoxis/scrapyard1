@@ -12,8 +12,7 @@ const NAV = [
   { href: "/coinflip", label: "Coinflip" },
   { href: "/jackpot", label: "Jackpot" },
   { href: "/chat", label: "Chat" },
-  { href: "/stats", label: "Stats" },
-  { href: "/connect", label: "Connect Steam" },
+  { href: "/account", label: "Account" },
 ];
 
 export function SiteHeader() {
@@ -66,7 +65,7 @@ export function SiteHeader() {
 
           {user?.selfBanned && (
             <Link
-              href="/stats"
+              href="/account"
               className="hidden rounded-sm border border-rose-500/40 bg-rose-950/50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-rose-200 sm:inline"
             >
               Self-banned
@@ -74,7 +73,7 @@ export function SiteHeader() {
           )}
 
           {user?.steamConnected && user.avatarUrl ? (
-            <Link href="/stats">
+            <Link href="/account">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={user.avatarUrl}
@@ -85,18 +84,21 @@ export function SiteHeader() {
             </Link>
           ) : null}
 
-          <div className="rounded-sm border border-[rgba(196,92,38,0.25)] bg-[rgba(28,22,18,0.9)] px-3 py-1.5">
+          <Link
+            href="/account"
+            className="rounded-sm border border-[rgba(196,92,38,0.25)] bg-[rgba(28,22,18,0.9)] px-3 py-1.5 transition hover:border-[rgba(240,160,96,0.45)]"
+          >
             <p className="text-[9px] uppercase tracking-[0.2em] text-[#8a7d70]">
-              {user?.steamConnected ? "Winnings" : "Steam"}
+              {user?.steamConnected ? "Winnings" : "Account"}
             </p>
             <p className="font-mono text-sm text-[#f0a060]">
               {loading
                 ? "…"
                 : user?.steamConnected
                   ? formatPrice(siteValue)
-                  : "Not linked"}
+                  : "Link Steam"}
             </p>
-          </div>
+          </Link>
         </div>
       </div>
 

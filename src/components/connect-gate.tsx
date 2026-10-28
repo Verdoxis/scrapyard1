@@ -27,7 +27,7 @@ export function ConnectGate({ children }: { children: React.ReactNode }) {
           connect.
         </p>
         <Link
-          href="/connect"
+          href="/account"
           className="mt-6 inline-flex rounded bg-[#c45c26] px-5 py-2.5 font-display text-sm tracking-wider text-[#120e0b] hover:bg-[#e07030]"
         >
           Set up Steam
@@ -52,13 +52,13 @@ export function ConnectGate({ children }: { children: React.ReactNode }) {
               ? new Date(user.selfBanUntil).toLocaleString()
               : "further notice"}
           </strong>
-          . Take the break — you can still browse Stats.
+          . Take the break — you can still browse Account.
         </p>
         <Link
-          href="/stats"
+          href="/account"
           className="mt-6 inline-flex rounded bg-[#cd412b] px-5 py-2.5 font-display text-sm tracking-wider text-[#140c08] hover:bg-[#e25a3c]"
         >
-          View stats
+          Open account
         </Link>
       </div>
     );

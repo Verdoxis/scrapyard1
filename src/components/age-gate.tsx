@@ -68,7 +68,7 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
             Gambling can be addictive and you can lose items of real value.
             Never wager more than you can afford to lose. If you need help, use
             the self-ban tools in{" "}
-            <span className="text-[#f0a060]">Stats</span> or visit{" "}
+            <span className="text-[#f0a060]">Account</span> or visit{" "}
             <a
               href="https://www.begambleaware.org/"
               target="_blank"

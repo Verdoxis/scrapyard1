@@ -155,8 +155,8 @@ export function ChatRoom({ compact }: { compact?: boolean }) {
           </div>
         ) : (
           <p className="text-center text-sm text-[#a89a8c]">
-            <Link href="/connect" className="text-[#f0a060] underline-offset-2 hover:underline">
-              Connect Steam
+            <Link href="/account" className="text-[#f0a060] underline-offset-2 hover:underline">
+              Account
             </Link>{" "}
             to talk on the radio.
           </p>

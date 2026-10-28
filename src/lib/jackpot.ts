@@ -30,7 +30,7 @@ const BOT_AVATARS = [
 
 function requireSteam(user: UserState) {
   if (!user.steamConnected) {
-    throw new Error("Connect Steam first — paste your trade URL on the Connect page.");
+    throw new Error("Connect Steam first — open Account and paste your trade URL.");
   }
   assertNotSelfBanned(user);
 }
@@ -247,9 +247,11 @@ function settleJackpot(round: JackpotRound) {
     if (dep.userId.startsWith("bot-") || dep.userId === "house-bot") continue;
     recordGameResult(getUser(dep.userId), {
       game: "jackpot",
+      gameId: round.id,
       wagered: dep.value,
       payout: dep.userId === winner.userId ? payoutValue : 0,
       won: dep.userId === winner.userId,
+      opponentName: winner.displayName,
     });
   }
 

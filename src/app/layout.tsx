@@ -47,8 +47,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <SiteHeader />
             <div className="flex-1">{children}</div>
             <footer className="border-t border-[rgba(196,92,38,0.15)] px-4 py-6 text-center text-xs text-[#6b6258]">
-              18+ only. Gamble responsibly — use Stats → Self-ban if you need a
-              break. Demo site; not affiliated with Facepunch or Valve.
+              18+ only. Gamble responsibly — use Account → Self-ban if you need
+              a break. Demo site; not affiliated with Facepunch or Valve.
             </footer>
           </AppProvider>
         </AgeGate>

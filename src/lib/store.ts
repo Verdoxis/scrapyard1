@@ -119,6 +119,18 @@ export interface UserStats {
   biggestWin: number;
 }
 
+export interface GameHistoryEntry {
+  id: string;
+  game: "coinflip" | "jackpot";
+  gameId: string;
+  won: boolean;
+  wagered: number;
+  payout: number;
+  opponentName?: string;
+  resultSide?: string;
+  createdAt: number;
+}
+
 export interface UserState {
   id: string;
   displayName: string;
@@ -137,6 +149,7 @@ export interface UserState {
   trades: TradeOffer[];
   houseEarnings: number;
   stats: UserStats;
+  gameHistory: GameHistoryEntry[];
   /** Unix ms; if set and in the future, gambling is blocked */
   selfBanUntil: number | null;
   joinedAt: number;
@@ -150,11 +163,11 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV7?: GlobalState };
+const g = globalThis as unknown as { __scrapyardV8?: GlobalState };
 
 function state(): GlobalState {
-  if (!g.__scrapyardV7) {
-    g.__scrapyardV7 = {
+  if (!g.__scrapyardV8) {
+    g.__scrapyardV8 = {
       users: new Map(),
       coinflips: new Map(),
       jackpot: null,
@@ -162,7 +175,7 @@ function state(): GlobalState {
       houseEarnings: 0,
     };
   }
-  return g.__scrapyardV7;
+  return g.__scrapyardV8;
 }
 
 export function emptyStats(): UserStats {
@@ -237,6 +250,7 @@ function freshUser(id: string): UserState {
     trades: [],
     houseEarnings: 0,
     stats: emptyStats(),
+    gameHistory: [],
     selfBanUntil: null,
     joinedAt: Date.now(),
   };
@@ -257,9 +271,12 @@ export function recordGameResult(
   user: UserState,
   opts: {
     game: "coinflip" | "jackpot";
+    gameId?: string;
     wagered: number;
     payout: number;
     won: boolean;
+    opponentName?: string;
+    resultSide?: string;
   },
 ) {
   const s = user.stats ?? emptyStats();
@@ -269,17 +286,30 @@ export function recordGameResult(
   if (opts.game === "jackpot") s.jackpotsPlayed += 1;
   if (opts.won) {
     s.gamesWon += 1;
-    const profit = Math.max(0, opts.payout - opts.wagered);
     s.totalWon += opts.payout;
     s.biggestWin = Math.max(s.biggestWin, opts.payout);
-    if (profit > 0) {
-      /* tracked via totalWon */
-    }
   } else {
     s.gamesLost += 1;
     s.totalLost += opts.wagered;
   }
   user.stats = s;
+
+  if (!user.gameHistory) user.gameHistory = [];
+  user.gameHistory.unshift({
+    id: nanoid(10),
+    game: opts.game,
+    gameId: opts.gameId ?? nanoid(8),
+    won: opts.won,
+    wagered: opts.wagered,
+    payout: opts.payout,
+    opponentName: opts.opponentName,
+    resultSide: opts.resultSide,
+    createdAt: Date.now(),
+  });
+  // Keep a long but bounded ledger
+  if (user.gameHistory.length > 200) {
+    user.gameHistory = user.gameHistory.slice(0, 200);
+  }
   saveUser(user);
 }
 
@@ -436,6 +466,7 @@ export function publicUser(user: UserState) {
     nonce: user.nonce,
     trades: user.trades.slice(0, 25),
     stats: user.stats ?? emptyStats(),
+    gameHistory: (user.gameHistory ?? []).slice(0, 100),
     selfBanUntil: user.selfBanUntil,
     selfBanned: banned,
     joinedAt: user.joinedAt ?? Date.now(),

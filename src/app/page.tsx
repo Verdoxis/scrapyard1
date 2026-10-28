@@ -39,7 +39,7 @@ export default function HomePage() {
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                href="/connect"
+                href="/account"
                 className="inline-flex items-center rounded-sm bg-[#cd412b] px-5 py-2.5 font-display text-sm tracking-wider text-[#140c08] transition hover:bg-[#e25a3c]"
               >
                 Connect Steam

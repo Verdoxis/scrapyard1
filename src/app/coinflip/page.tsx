@@ -754,7 +754,7 @@ function CoinflipLobby() {
                     : [...prev, id],
                 )
               }
-              emptyText="No unlocked skins — restock on Connect Steam."
+              emptyText="No unlocked skins — restock on Account."
             />
           </div>
         </aside>

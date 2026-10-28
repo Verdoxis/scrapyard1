@@ -32,6 +32,18 @@ export interface UserStats {
   biggestWin: number;
 }
 
+export interface GameHistoryEntry {
+  id: string;
+  game: "coinflip" | "jackpot";
+  gameId: string;
+  won: boolean;
+  wagered: number;
+  payout: number;
+  opponentName?: string;
+  resultSide?: string;
+  createdAt: number;
+}
+
 export interface PublicUser {
   id: string;
   displayName: string;
@@ -57,6 +69,7 @@ export interface PublicUser {
     items: Array<{ skinId: string; assetId: string }>;
   }>;
   stats: UserStats;
+  gameHistory: GameHistoryEntry[];
   selfBanUntil: number | null;
   selfBanned: boolean;
   joinedAt: number;

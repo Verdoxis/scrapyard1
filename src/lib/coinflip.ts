@@ -41,7 +41,7 @@ const BOT_LOBBY_NAMES = ["OilRigRaider", "ScrapBandit", "RoofCamper"];
 
 function requireSteam(user: UserState) {
   if (!user.steamConnected) {
-    throw new Error("Connect Steam first — paste your trade URL on the Connect page.");
+    throw new Error("Connect Steam first — open Account and paste your trade URL.");
   }
   assertNotSelfBanned(user);
 }
@@ -316,17 +316,23 @@ function settleCoinflip(game: CoinflipGame) {
     const creator = getUser(game.creatorId);
     recordGameResult(creator, {
       game: "coinflip",
+      gameId: game.id,
       wagered: creatorWager,
       payout: game.winnerId === creator.id ? payoutValue : 0,
       won: game.winnerId === creator.id,
+      opponentName: game.joinerName,
+      resultSide: game.resultSide,
     });
   }
   if (game.joinerId && !isBotId(game.joinerId)) {
     recordGameResult(getUser(game.joinerId), {
       game: "coinflip",
+      gameId: game.id,
       wagered: joinerWager,
       payout: game.winnerId === game.joinerId ? payoutValue : 0,
       won: game.winnerId === game.joinerId,
+      opponentName: game.creatorName,
+      resultSide: game.resultSide,
     });
   }
 
