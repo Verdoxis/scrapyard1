@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import { formatPrice } from "@/lib/skins";
+import { playSelectSound } from "@/lib/sfx";
 import { SkinCard } from "@/components/skin-card";
 import type { EnrichedSkinItem } from "@/components/app-provider";
 
@@ -15,7 +17,13 @@ export function InventoryPicker({
   onToggle: (assetId: string) => void;
   emptyText?: string;
 }) {
-  const available = items.filter((i) => i.assetId && !i.locked);
+  const available = useMemo(() => {
+    return items
+      .filter((i) => i.assetId && !i.locked)
+      .slice()
+      .sort((a, b) => (b.skin?.price ?? 0) - (a.skin?.price ?? 0));
+  }, [items]);
+
   const selectedValue = available
     .filter((i) => selected.includes(i.assetId!))
     .reduce((s, i) => s + i.skin.price, 0);
@@ -30,26 +38,34 @@ export function InventoryPicker({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-[#a89a8c]">
-        Selected{" "}
-        <span className="font-mono text-[#f0a060]">
-          {selected.length}
-        </span>{" "}
-        ·{" "}
-        <span className="font-mono text-[#f0a060]">
-          {formatPrice(selectedValue)}
-        </span>
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[#a89a8c]">
+          Selected{" "}
+          <span className="font-mono text-[#f0a060]">{selected.length}</span> ·{" "}
+          <span className="font-mono text-[#f0a060]">
+            {formatPrice(selectedValue)}
+          </span>
+        </p>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-[#6b6258]">
+          Sorted high → low
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {available.map((item) => (
-          <SkinCard
-            key={item.assetId}
-            skin={item.skin}
-            selected={selected.includes(item.assetId!)}
-            onClick={() => onToggle(item.assetId!)}
-            compact
-          />
-        ))}
+        {available.map((item) => {
+          const isSelected = selected.includes(item.assetId!);
+          return (
+            <SkinCard
+              key={item.assetId}
+              skin={item.skin}
+              selected={isSelected}
+              onClick={() => {
+                playSelectSound();
+                onToggle(item.assetId!);
+              }}
+              compact
+            />
+          );
+        })}
       </div>
     </div>
   );

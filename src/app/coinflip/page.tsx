@@ -10,26 +10,12 @@ import { ConnectGate } from "@/components/connect-gate";
 import { InventoryPicker } from "@/components/steam/inventory-picker";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { playCoinFlipSound } from "@/lib/sfx";
 
 type CoinSide = "red" | "black";
 
 const FLIP_DURATION_MS = 3200;
 const FLIP_DURATION_S = FLIP_DURATION_MS / 1000;
-
-function playCoinFlipSound() {
-  try {
-    // Prefer mp3 (smaller / better codec support); wav as fallback.
-    const audio = new Audio("/sounds/coinflip.mp3");
-    audio.volume = 0.75;
-    void audio.play().catch(() => {
-      const fallback = new Audio("/sounds/coinflip.wav");
-      fallback.volume = 0.75;
-      void fallback.play().catch(() => {});
-    });
-  } catch {
-    /* ignore */
-  }
-}
 
 interface CoinGame {
   id: string;
