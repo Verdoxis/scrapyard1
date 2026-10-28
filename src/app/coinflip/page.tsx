@@ -18,10 +18,13 @@ const FLIP_DURATION_S = FLIP_DURATION_MS / 1000;
 
 function playCoinFlipSound() {
   try {
-    const audio = new Audio("/sounds/coinflip.wav");
-    audio.volume = 0.65;
+    // Prefer mp3 (smaller / better codec support); wav as fallback.
+    const audio = new Audio("/sounds/coinflip.mp3");
+    audio.volume = 0.75;
     void audio.play().catch(() => {
-      /* autoplay may be blocked until a user gesture — callBot is a click */
+      const fallback = new Audio("/sounds/coinflip.wav");
+      fallback.volume = 0.75;
+      void fallback.play().catch(() => {});
     });
   } catch {
     /* ignore */

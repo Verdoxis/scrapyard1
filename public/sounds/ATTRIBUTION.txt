@@ -1,0 +1,2 @@
+Coin flip SFX layered from Mixkit free sound effects (Mixkit License):
+- whoosh / coin hit / coin toss preview samples from mixkit.co free SFX library
