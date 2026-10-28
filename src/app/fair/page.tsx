@@ -41,10 +41,11 @@ export default function FairPage() {
     <main className="mx-auto max-w-3xl px-4 py-10">
       <div>
         <h1 className="font-display text-4xl tracking-wide text-[#efe6da] sm:text-5xl">
-          Provably Fair
+          Fair & Terms
         </h1>
         <p className="mt-2 max-w-lg text-sm text-[#a89888]">
-          Every round outcome can be independently verified by anyone.
+          Provably fair rolls, house-cut rules, and the terms you accept by
+          playing.
         </p>
       </div>
 

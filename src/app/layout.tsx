@@ -52,14 +52,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               18+ only. Gamble responsibly — use Account → Self-ban if you need
               a break. Demo site; not affiliated with Facepunch or Valve.{" "}
               <a href="/fair" className="text-[#a89888] hover:text-[#f0a060]">
-                Provably fair
-              </a>
-              {" · "}
-              <a
-                href="/fair#terms"
-                className="text-[#a89888] hover:text-[#f0a060]"
-              >
-                Terms
+                Fair & Terms
               </a>
             </footer>
           </AppProvider>

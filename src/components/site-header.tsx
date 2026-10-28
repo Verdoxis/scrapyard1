@@ -13,7 +13,7 @@ const NAV = [
   { href: "/jackpot", label: "Jackpot" },
   { href: "/chat", label: "Chat" },
   { href: "/account", label: "Account" },
-  { href: "/fair", label: "Provably Fair" },
+  { href: "/fair", label: "Fair & Terms" },
 ];
 
 export function SiteHeader() {
