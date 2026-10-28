@@ -27,16 +27,53 @@ npm start
 
 Game state persists under `.data/scrapyard.json` across restarts.
 
-## Put it into action
+## Put it into action (beginner · Squarespace domain)
+
+Scrapyard is a **Next.js app**. It cannot run inside Squarespace’s website builder. Keep the **domain on Squarespace**, host the app on **Vercel** (free tier is fine to start), then point DNS.
+
+### Step A — Save the code to a real GitHub repo
+
+1. In Cursor, use **Create repo** for this project (if you have not already).
+2. Connect that repo to your GitHub account so Vercel can import it.
+
+### Step B — Deploy on Vercel
+
+1. Go to [vercel.com](https://vercel.com) → sign up with GitHub.
+2. **Add New Project** → import the Scrapyard repo.
+3. Leave build settings default (`next build`).
+4. Under **Environment Variables**, add:
+   - `STEAM_BOT_MODE` = `mock`
+5. Click **Deploy**. You’ll get a temporary URL like `scrapyard-xxxx.vercel.app`. Open it and confirm the age gate loads.
+
+### Step C — Attach your Squarespace domain
+
+1. In Vercel: Project → **Settings** → **Domains** → add `yourdomain.com` and `www.yourdomain.com`.
+2. Vercel shows the exact DNS records to create. Keep that tab open.
+3. In Squarespace: **Domains** → your domain → **DNS settings** (sometimes under “Advanced settings”).
+4. Add / edit records to match Vercel (typical pattern):
+
+| Host | Type | Data (use Vercel’s values if they differ) |
+|------|------|-------------------------------------------|
+| `@` | **A** | `76.76.21.21` |
+| `www` | **CNAME** | `cname.vercel-dns.com` |
+
+5. Remove any old Squarespace **Website** A/CNAME records that conflict (parking page, built-in site, etc.).
+6. Wait 5–60 minutes. In Vercel, the domain should turn valid and get a free HTTPS certificate.
+
+### Step D — Smoke test
+
+- `https://yourdomain.com` → welcome / 18+ gate  
+- `https://yourdomain.com/api/health` → `"ok": true`  
+- Account → connect (mock) → Coinflip  
+
+**Note:** On Vercel’s free serverless hosting, game state may reset between cold starts (the `.data` file is not durable there). Fine for a public demo; for lasting lobbies later, use a VPS or add a real database.
+
+### Later
 
 | Step | What to do |
 |------|------------|
-| 1. Repo | Create your real GitHub/Origin repo from this project (Create repo in Cursor if you have not yet). |
-| 2. Host | Deploy the Next.js app (Vercel, a VPS, Docker, etc.) with Node 20+. |
-| 3. Env | Copy `.env.example` → `.env` on the host. Start with `STEAM_BOT_MODE=mock` until the bot is wired. |
-| 4. Domain | Point DNS at the host; use HTTPS. |
-| 5. Live bot | Set `STEAM_BOT_MODE=live` and fill Steam bot secrets (see below). Implement real offer send/accept in `src/lib/steam-bot.ts`. |
-| 6. Legal | Confirm skin gambling is legal for you and your players. Keep 18+ / self-ban / Fair & Terms linked. |
+| Live Steam bot | Set `STEAM_BOT_MODE=live` + secrets; wire `src/lib/steam-bot.ts`. |
+| Legal | Confirm skin gambling is allowed for you/players. Keep 18+ / self-ban / Fair & Terms. |
 
 ### Live Steam bot checklist
 
