@@ -13,6 +13,21 @@ import { cn } from "@/lib/utils";
 
 type CoinSide = "red" | "black";
 
+const FLIP_DURATION_MS = 3200;
+const FLIP_DURATION_S = FLIP_DURATION_MS / 1000;
+
+function playCoinFlipSound() {
+  try {
+    const audio = new Audio("/sounds/coinflip.wav");
+    audio.volume = 0.65;
+    void audio.play().catch(() => {
+      /* autoplay may be blocked until a user gesture — callBot is a click */
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 interface CoinGame {
   id: string;
   status: string;
@@ -66,8 +81,16 @@ function RustCoin({
           ? "inset 0 0 0 3px rgba(255,180,140,0.25), 0 8px 20px rgba(140,20,10,0.45)"
           : "inset 0 0 0 3px rgba(180,180,180,0.2), 0 8px 20px rgba(0,0,0,0.55)",
       }}
-      animate={spinning ? { rotateY: 720 } : { rotateY: 0 }}
-      transition={spinning ? { duration: 1.4, ease: "easeInOut" } : { duration: 0 }}
+      animate={
+        spinning
+          ? { rotateY: [0, 1440, 2160], rotateZ: [0, 12, -8, 0], scale: [1, 1.08, 1] }
+          : { rotateY: 0, rotateZ: 0, scale: 1 }
+      }
+      transition={
+        spinning
+          ? { duration: FLIP_DURATION_S, ease: [0.15, 0.75, 0.2, 1] }
+          : { duration: 0 }
+      }
     >
       <span
         className="pointer-events-none absolute inset-2 rounded-full border"
@@ -180,6 +203,7 @@ function CoinflipLobby() {
     setBusy(true);
     setError(null);
     setSpinId(gameId);
+    playCoinFlipSound();
     try {
       await api("/api/coinflip", {
         method: "POST",
@@ -190,7 +214,7 @@ function CoinflipLobby() {
         setSpinId(null);
         void refresh();
         void load();
-      }, 1400);
+      }, FLIP_DURATION_MS);
     } catch (err) {
       setSpinId(null);
       setError(err instanceof Error ? err.message : "Bot call failed");
@@ -278,11 +302,15 @@ function CoinflipLobby() {
                   avatar={g.creatorAvatar}
                   side={g.creatorSide}
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <RustCoin
-                    side={g.resultSide || g.creatorSide}
-                    size="sm"
-                    spinning={spinId === g.id || g.status === "flipping"}
+                    side={
+                      spinId === g.id
+                        ? g.creatorSide
+                        : g.resultSide || g.creatorSide
+                    }
+                    size={spinId === g.id ? "md" : "sm"}
+                    spinning={spinId === g.id}
                   />
                   <p className="font-mono text-[#f0a060]">
                     {formatPrice(g.totalValue)}
