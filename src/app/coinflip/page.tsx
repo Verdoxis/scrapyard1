@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/skins";
@@ -175,15 +175,44 @@ function CoinflipLobby() {
   const [joinTarget, setJoinTarget] = useState<string | null>(null);
   const [win, setWin] = useState<WinPayload | null>(null);
   const [loss, setLoss] = useState<LosePayload | null>(null);
+  const pendingFlipRef = useRef<CoinGame | null>(null);
+  const resultPopupShownRef = useRef(false);
+  const revealResultPopupRef = useRef<(game: CoinGame) => void>(() => {});
 
   const inventory = user?.steamInventory ?? [];
+
+  function markFlipSettled(game: CoinGame) {
+    setGames((prev) =>
+      prev.map((g) =>
+        g.id === game.id ? { ...g, ...game, status: "settled" } : g,
+      ),
+    );
+    setHoldingResult(true);
+  }
+
+  function revealResultPopup(game: CoinGame) {
+    if (resultPopupShownRef.current) return;
+    resultPopupShownRef.current = true;
+    markFlipSettled(game);
+    // Popup the same frame as "red/black wins" — no await before setState
+    showResultAfterFlip(game);
+  }
+  revealResultPopupRef.current = revealResultPopup;
+
   const onCoinLand = useCallback(() => {
     playCoinLandDing();
-    setHoldingResult(true);
+    const game = pendingFlipRef.current;
+    if (game) {
+      revealResultPopupRef.current(game);
+    } else {
+      setHoldingResult(true);
+    }
   }, []);
 
   function runFlipReveal(gameId: string, game: CoinGame) {
     const land = game.resultSide === "black" ? "black" : "red";
+    pendingFlipRef.current = game;
+    resultPopupShownRef.current = false;
     setSpinLand(land);
     setHoldingResult(false);
     setGames((prev) =>
@@ -192,18 +221,13 @@ function CoinflipLobby() {
       ),
     );
 
+    // Backup if onLand never fires (tab backgrounded / raf paused)
     window.setTimeout(() => {
-      setGames((prev) =>
-        prev.map((g) =>
-          g.id === gameId ? { ...g, ...game, status: "settled" } : g,
-        ),
-      );
-      setHoldingResult(true);
-      // Same moment the card shows "red/black wins"
-      void showResultAfterFlip(game);
+      revealResultPopupRef.current(game);
     }, FLIP_DURATION_MS);
 
     window.setTimeout(() => {
+      pendingFlipRef.current = null;
       setSpinId(null);
       setSpinLand(null);
       setHoldingResult(false);
@@ -300,7 +324,7 @@ function CoinflipLobby() {
     isCoinflipStakeAllowed(joinTargetCents, selectedCents);
   const joinYourChance = winChancePercent(selectedCents, joinTargetCents);
 
-  async function showResultAfterFlip(game: CoinGame) {
+  function showResultAfterFlip(game: CoinGame) {
     if (!game.resultSide || !user?.id) return;
 
     const iAmCreator = game.creatorId === user.id;
@@ -312,35 +336,49 @@ function CoinflipLobby() {
       : game.joinerItems.reduce((s, i) => s + i.skin.price, 0);
 
     if (game.winnerId === user.id) {
-      await refresh();
-      const fresh = await api<{
-        user: {
-          id: string;
-          trades: Array<{
-            id: string;
-            steamTradeUrl?: string;
-            purpose: string;
-            gameId: string;
-          }>;
-        };
-      }>("/api/me");
-
-      const t =
-        fresh.user.trades.find((x) => x.id === game.payoutTradeId) ||
-        fresh.user.trades.find(
-          (x) =>
-            x.purpose === "coinflip_payout" && x.gameId === game.id,
-        );
-
       setWin({
         gameId: game.id,
         resultSide: game.resultSide,
         potValue: game.totalValue,
         rakeValue: game.rakeValue,
         items: game.winnerItems ?? [...game.creatorItems, ...game.joinerItems],
-        payoutTradeId: t?.id ?? game.payoutTradeId,
-        tradeUrl: t?.steamTradeUrl,
+        payoutTradeId: game.payoutTradeId,
       });
+      // Enrich trade offer URL after the popup is already up
+      void (async () => {
+        try {
+          await refresh();
+          const fresh = await api<{
+            user: {
+              id: string;
+              trades: Array<{
+                id: string;
+                steamTradeUrl?: string;
+                purpose: string;
+                gameId: string;
+              }>;
+            };
+          }>("/api/me");
+          const t =
+            fresh.user.trades.find((x) => x.id === game.payoutTradeId) ||
+            fresh.user.trades.find(
+              (x) =>
+                x.purpose === "coinflip_payout" && x.gameId === game.id,
+            );
+          if (!t) return;
+          setWin((prev) =>
+            prev && prev.gameId === game.id
+              ? {
+                  ...prev,
+                  payoutTradeId: t.id ?? prev.payoutTradeId,
+                  tradeUrl: t.steamTradeUrl ?? prev.tradeUrl,
+                }
+              : prev,
+          );
+        } catch {
+          /* popup already shown */
+        }
+      })();
       return;
     }
 

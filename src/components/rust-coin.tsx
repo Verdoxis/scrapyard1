@@ -33,10 +33,6 @@ function faceSequence(start: CoinSide, land: CoinSide, steps: number): CoinSide[
   return seq;
 }
 
-function easeInOutCubic(t: number) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
 function CoinFace({ side, edgeOn }: { side: CoinSide; edgeOn: boolean }) {
   const isRed = side === "red";
   if (edgeOn) {
@@ -135,16 +131,15 @@ export function RustCoin({
     }
 
     landedRef.current = false;
-    // More half-turns → slower perceived spin over the longer duration
+    // Even half-turns at a constant rate across the full duration
     const seq = faceSequence(side, landSide, 21);
     const start = performance.now();
     let raf = 0;
 
     const frame = (now: number) => {
       const t = Math.min(1, (now - start) / FLIP_MS);
-      // Smooth ease; linger a bit more on the last flips
-      const e = easeInOutCubic(t);
-      const seg = e * (seq.length - 1);
+      // Linear progress → consistent flip speed (no ease ramp)
+      const seg = t * (seq.length - 1);
       const i = Math.min(seq.length - 2, Math.floor(seg));
       const local = seg - i;
       // Soft squash so edges don't flash harshly
