@@ -28,8 +28,6 @@ import type { Skin } from "@/lib/skins";
 const FLIP_DURATION_MS = COIN_FLIP_DURATION_MS;
 /** Keep the settled lobby card on screen after the coin lands. */
 const HOLD_AFTER_LAND_MS = 5600;
-/** Show the lose modal soon after land (card still holds underneath). */
-const LOSE_MODAL_AFTER_LAND_MS = 700;
 
 interface CoinGame {
   id: string;
@@ -201,22 +199,16 @@ function CoinflipLobby() {
         ),
       );
       setHoldingResult(true);
+      // Same moment the card shows "red/black wins"
+      void showResultAfterFlip(game);
     }, FLIP_DURATION_MS);
-
-    // Lose modal pops quickly; win waits until the hold finishes.
-    window.setTimeout(() => {
-      void showResultAfterFlip(game, "lose");
-    }, FLIP_DURATION_MS + LOSE_MODAL_AFTER_LAND_MS);
 
     window.setTimeout(() => {
       setSpinId(null);
       setSpinLand(null);
       setHoldingResult(false);
-      void (async () => {
-        await refresh();
-        await load();
-        await showResultAfterFlip(game, "win");
-      })();
+      void refresh();
+      void load();
     }, FLIP_DURATION_MS + HOLD_AFTER_LAND_MS);
   }
 
@@ -308,25 +300,18 @@ function CoinflipLobby() {
     isCoinflipStakeAllowed(joinTargetCents, selectedCents);
   const joinYourChance = winChancePercent(selectedCents, joinTargetCents);
 
-  async function showResultAfterFlip(
-    game: CoinGame,
-    only?: "win" | "lose",
-  ) {
+  async function showResultAfterFlip(game: CoinGame) {
     if (!game.resultSide || !user?.id) return;
 
     const iAmCreator = game.creatorId === user.id;
     const iAmJoiner = game.joinerId === user.id;
     if (!iAmCreator && !iAmJoiner) return;
 
-    const won = game.winnerId === user.id;
-    if (only === "win" && !won) return;
-    if (only === "lose" && won) return;
-
     const yourStake = iAmCreator
       ? game.creatorItems.reduce((s, i) => s + i.skin.price, 0)
       : game.joinerItems.reduce((s, i) => s + i.skin.price, 0);
 
-    if (won) {
+    if (game.winnerId === user.id) {
       await refresh();
       const fresh = await api<{
         user: {
