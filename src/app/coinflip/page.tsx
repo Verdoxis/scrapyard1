@@ -275,7 +275,7 @@ function CoinflipLobby() {
     [games, spinId],
   );
 
-  function openJoinPicker(game: CoinGame, autoQuick = true) {
+  function openJoinPicker(game: CoinGame, autoQuick = false) {
     setError(null);
     setMessage(null);
     setJoinTarget(game.id);
@@ -707,7 +707,7 @@ function CoinflipLobby() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              openJoinPicker(g, true);
+                              openJoinPicker(g);
                             }}
                             className="relative z-10 inline-flex h-12 w-full max-w-[220px] items-center justify-center rounded-sm bg-[#cd412b] font-display text-sm tracking-[0.14em] text-[#140c08] shadow-[0_8px_24px_rgba(205,65,43,0.3)] transition hover:bg-[#e25a3c] disabled:opacity-50"
                           >
