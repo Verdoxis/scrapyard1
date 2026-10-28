@@ -1,61 +1,37 @@
 # SCRAPYARD
 
-Rust skin gambling demo: case openings, roulette, coinflip, inventory, and a Steam trade bot for deposits/withdrawals.
+Rust skin coinflip & jackpot. Connect Steam, see your inventory listed, select skins to gamble — the trade bot sends you an offer for those items. The site takes a **5% house rake** from every settled pot.
 
-## Run locally
+## Run
 
 ```bash
 npm install
-npm run dev -- -p 43127
+npm run dev
 ```
 
 Open [http://127.0.0.1:43127](http://127.0.0.1:43127).
 
-You start with **$25** demo balance and two starter skins. Use **+$25** in the header to top up.
+## Flow
 
-## Features
+1. **Connect Steam** — follow on-page directions, paste your trade URL (demo URL works in mock mode).
+2. **Inventory loads** on screen (mock Steam inventory in demo).
+3. **Coinflip** or **Jackpot** — pick skins → bot sends trade → accept → skins enter the game.
+4. Settled pots pay the winner; lowest-value skins covering ~5% go to the house.
 
-- **Cases** — weighted crate openings with reel animation
-- **Roulette** — red / black / green (14×)
-- **Coinflip** — CT vs T vs house
-- **Inventory** — sell at 95% or withdraw via bot
-- **Steam bot** — deposit/withdraw trade offers (mock by default)
+## Games
 
-Rolls use a server seed + client seed + nonce (SHA-256). History stores seeds for verification.
+| Game | How it works |
+|------|----------------|
+| **Coinflip** | Create a lobby with skins. After the bot trade accepts, call a bot opponent (or a real joiner). 50/50 flip. |
+| **Jackpot** | Deposit skins into a timed pot. Chance ∝ deposit value. Rival bots fill the pot in demo so rounds can complete. |
 
-## Steam trade bot
+## Steam bot
 
-### Mock mode (default)
+- **Mock (default):** trades auto-accept in a few seconds.
+- **Live:** set `STEAM_BOT_MODE=live` and Steam env vars (see `.env.example`), then implement live sending in `src/lib/steam-bot.ts`.
 
-`STEAM_BOT_MODE` unset or `mock`. Trades auto-progress: pending → sent → accepted in a few seconds. No real Steam items move. Use the **demo trade URL** button on the Steam Bot page.
+## Notes
 
-### Live mode
-
-Set:
-
-```bash
-STEAM_BOT_MODE=live
-STEAM_ACCOUNT_NAME=...
-STEAM_PASSWORD=...
-STEAM_SHARED_SECRET=...
-STEAM_IDENTITY_SECRET=...
-STEAM_BOT_STEAM_ID=...
-STEAM_BOT_NAME=Scrapyard Bot
-```
-
-Then implement `sendLiveTrade()` in `src/lib/steam-bot.ts` with `steam-user`, `steam-totp`, and `steam-tradeoffer-manager`. Live mode refuses trades until that wiring is done so credentials alone cannot accidentally partial-send.
-
-**Notes**
-
-- Operating a real skin gambling site may require gambling licenses and must follow Steam / Facepunch ToS.
-- This repo ships fictional skin names and SVG glyphs — not official Rust asset art.
 - In-memory state resets when the server restarts.
-
-## Scripts
-
-| Command        | Description        |
-|----------------|--------------------|
-| `npm run dev`  | Dev server         |
-| `npm run build`| Production build   |
-| `npm run start`| Start production   |
-| `npm run lint` | ESLint             |
+- Fictional skin names / SVG glyphs — not official Rust art.
+- Real operation needs licensing and Steam / Facepunch ToS compliance.

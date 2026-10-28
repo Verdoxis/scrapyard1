@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bebas_Neue, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { AppProvider } from "@/components/app-provider";
 import { SiteHeader } from "@/components/site-header";
+import { HOUSE_RAKE_PERCENT } from "@/lib/config";
 import "./globals.css";
 
 const display = Bebas_Neue({
@@ -23,9 +24,9 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SCRAPYARD — Rust Skin Gambling",
+  title: "SCRAPYARD — Coinflip & Jackpot",
   description:
-    "Open crates, roulette, coinflip, and Steam trade-bot deposits for Rust skins.",
+    "Connect Steam, list your skins, and gamble in coinflip or jackpot via trade bot.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -39,8 +40,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SiteHeader />
           <div className="flex-1">{children}</div>
           <footer className="border-t border-[rgba(196,92,38,0.15)] px-4 py-6 text-center text-xs text-[#6b6258]">
-            Demo site — mock Steam bot by default. Not affiliated with Facepunch
-            or Valve. Gambling may be restricted in your region.
+            Demo — mock Steam trades by default. {HOUSE_RAKE_PERCENT}% house rake on every game.
+            Not affiliated with Facepunch or Valve.
           </footer>
         </AppProvider>
       </body>

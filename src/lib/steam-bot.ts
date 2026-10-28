@@ -1,236 +1,139 @@
 /**
- * Steam trade bot adapter.
- *
- * Default: MOCK mode — simulates trade offers so the site is fully playable
- * without Steam credentials.
- *
- * Live mode: set STEAM_BOT_MODE=live and provide:
- *   STEAM_ACCOUNT_NAME
- *   STEAM_PASSWORD
- *   STEAM_SHARED_SECRET
- *   STEAM_IDENTITY_SECRET
- *   STEAM_BOT_STEAM_ID
- *
- * Live mode requires steam-user / steam-tradeoffer-manager packages and a
- * dedicated bot account. Wire those in sendLiveTrade() when ready.
+ * Steam trade bot — mock by default.
+ * When a user selects skins to gamble, the bot sends a trade offer for those items.
  */
 
-import { nanoid } from "nanoid";
-import type { TradeOffer, TradeStatus, UserState } from "./store";
-import { getSkin } from "./skins";
-import { saveUser } from "./store";
+import {
+  getUser,
+  saveUser,
+  type EscrowItem,
+  type TradeOffer,
+  type TradeStatus,
+  type UserState,
+  nanoid,
+  itemsValue,
+} from "./store";
 
-export type BotMode = "mock" | "live";
-
-export function getBotMode(): BotMode {
+export function getBotMode(): "mock" | "live" {
   return process.env.STEAM_BOT_MODE === "live" ? "live" : "mock";
 }
 
 export function botStatus() {
   const mode = getBotMode();
-  const ready =
-    mode === "mock" ||
-    Boolean(
-      process.env.STEAM_ACCOUNT_NAME &&
-        process.env.STEAM_PASSWORD &&
-        process.env.STEAM_SHARED_SECRET &&
-        process.env.STEAM_IDENTITY_SECRET,
-    );
   return {
     mode,
-    ready,
-    botName:
-      mode === "mock"
-        ? "Scrapyard Bot (Mock)"
-        : process.env.STEAM_BOT_NAME || "Scrapyard Bot",
+    ready: mode === "mock",
+    botName: mode === "mock" ? "Scrapyard Bot (Mock)" : "Scrapyard Bot",
     message:
       mode === "mock"
-        ? "Running in mock mode — trades auto-complete locally. No real Steam items move."
-        : ready
-          ? "Live Steam bot credentials detected."
-          : "Live mode selected but Steam credentials are missing.",
+        ? "Mock bot: trade offers auto-accept so you can play without a real Steam account."
+        : "Live bot mode — wire sendLiveTrade() with your Steam credentials.",
   };
 }
 
-function advanceMockTrade(user: UserState, tradeId: string) {
-  const trade = user.trades.find((t) => t.id === tradeId);
-  if (!trade || trade.status === "accepted" || trade.status === "declined") {
-    return;
+export function createGambleTrade(opts: {
+  user: UserState;
+  purpose: TradeOffer["purpose"];
+  gameId: string;
+  assetIds: string[];
+}): TradeOffer {
+  const { user, purpose, gameId, assetIds } = opts;
+
+  if (!user.steamConnected || !user.steamTradeUrl) {
+    throw new Error("Connect your Steam trade URL before gambling.");
+  }
+  if (assetIds.length === 0) {
+    throw new Error("Select at least one skin.");
   }
 
-  // pending -> sent after ~1.5s, accepted after ~4s
+  const items: EscrowItem[] = assetIds.map((assetId) => {
+    const inv = user.steamInventory.find((i) => i.assetId === assetId);
+    if (!inv) throw new Error(`Skin ${assetId} not in your Steam inventory.`);
+    if (inv.locked) throw new Error(`Skin ${assetId} is already locked in a trade.`);
+    return {
+      instanceId: nanoid(10),
+      skinId: inv.skinId,
+      assetId: inv.assetId,
+      ownerId: user.id,
+    };
+  });
+
+  for (const item of items) {
+    const inv = user.steamInventory.find((i) => i.assetId === item.assetId);
+    if (inv) inv.locked = true;
+  }
+
+  const trade: TradeOffer = {
+    id: nanoid(12),
+    purpose,
+    gameId,
+    status: "pending",
+    steamTradeUrl: user.steamTradeUrl,
+    items,
+    totalValue: itemsValue(items),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    message: "Bot is sending you a trade offer for the selected skins…",
+  };
+
+  user.trades.unshift(trade);
+  saveUser(user);
+  return trade;
+}
+
+function advanceTrade(user: UserState, trade: TradeOffer) {
+  if (trade.status === "accepted" || trade.status === "declined") return false;
+
   const age = Date.now() - trade.createdAt;
   let next: TradeStatus = trade.status;
-  if (age > 4000) next = "accepted";
-  else if (age > 1500) next = "sent";
+  if (age > 3500) next = "accepted";
+  else if (age > 1200) next = "sent";
 
-  if (next === trade.status) return;
+  if (next === trade.status) return false;
 
   trade.status = next;
   trade.updatedAt = Date.now();
 
   if (next === "sent") {
     trade.message =
-      trade.type === "deposit"
-        ? "Mock bot sent a trade offer. Accepting automatically…"
-        : "Mock bot is sending your skins…";
+      "Trade offer sent to your Steam. Accept it to put skins into the game.";
   }
 
   if (next === "accepted") {
-    if (trade.type === "deposit") {
-      for (const skinId of trade.skinIds) {
-        user.inventory.push({
-          instanceId: nanoid(10),
-          skinId,
-          acquiredAt: Date.now(),
-          source: "deposit",
-        });
-      }
-      trade.message = `Deposit complete — ${trade.skinIds.length} skin(s) added to site inventory.`;
-    } else {
-      const remove = new Set(trade.instanceIds ?? []);
-      user.inventory = user.inventory.filter((i) => !remove.has(i.instanceId));
-      trade.message = `Withdraw complete — ${trade.skinIds.length} skin(s) sent to your Steam.`;
-    }
+    // Remove from Steam inventory — now in escrow for the game
+    const assetSet = new Set(trade.items.map((i) => i.assetId));
+    user.steamInventory = user.steamInventory.filter(
+      (i) => !assetSet.has(i.assetId),
+    );
+    trade.message = "Trade accepted — skins are in escrow for the game.";
   }
 
   saveUser(user);
+  return true;
 }
 
-export function tickTrades(user: UserState) {
+export function tickUserTrades(user: UserState) {
   if (getBotMode() !== "mock") return;
   for (const trade of user.trades) {
     if (trade.status === "pending" || trade.status === "sent") {
-      advanceMockTrade(user, trade.id);
+      advanceTrade(user, trade);
     }
   }
 }
 
-export function createDepositTrade(
-  user: UserState,
-  steamTradeUrl: string,
-  skinIds: string[],
-): TradeOffer {
-  if (!steamTradeUrl.includes("steamcommunity.com/tradeoffer/new")) {
-    throw new Error(
-      "Invalid Steam trade URL. It should look like https://steamcommunity.com/tradeoffer/new/?partner=…&token=…",
-    );
-  }
-  if (skinIds.length === 0) {
-    throw new Error("Select at least one skin to deposit.");
-  }
-
-  const totalValue = skinIds.reduce(
-    (sum, id) => sum + (getSkin(id)?.price ?? 0),
-    0,
-  );
-
-  const trade: TradeOffer = {
-    id: nanoid(12),
-    type: "deposit",
-    status: "pending",
-    steamTradeUrl,
-    skinIds,
-    totalValue,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    message:
-      getBotMode() === "mock"
-        ? "Mock bot preparing trade offer…"
-        : "Bot queueing live Steam trade offer…",
-  };
-
-  user.steamTradeUrl = steamTradeUrl;
-  user.trades.unshift(trade);
-  saveUser(user);
-
-  if (getBotMode() === "live") {
-    void sendLiveTrade(trade).catch((err) => {
-      trade.status = "declined";
-      trade.message = `Live trade failed: ${err instanceof Error ? err.message : "unknown error"}`;
-      trade.updatedAt = Date.now();
-      saveUser(user);
-    });
-  }
-
-  return trade;
+export function getTrade(user: UserState, tradeId: string) {
+  return user.trades.find((t) => t.id === tradeId);
 }
 
-export function createWithdrawTrade(
-  user: UserState,
-  steamTradeUrl: string,
-  instanceIds: string[],
-): TradeOffer {
-  if (!steamTradeUrl.includes("steamcommunity.com/tradeoffer/new")) {
-    throw new Error(
-      "Invalid Steam trade URL. It should look like https://steamcommunity.com/tradeoffer/new/?partner=…&token=…",
-    );
-  }
-  if (instanceIds.length === 0) {
-    throw new Error("Select at least one skin to withdraw.");
-  }
-
-  const owned = instanceIds.map((id) => {
-    const item = user.inventory.find((i) => i.instanceId === id);
-    if (!item) throw new Error(`Skin ${id} not in your inventory.`);
-    return item;
-  });
-
-  const skinIds = owned.map((o) => o.skinId);
-  const totalValue = skinIds.reduce(
-    (sum, id) => sum + (getSkin(id)?.price ?? 0),
-    0,
-  );
-
-  const trade: TradeOffer = {
-    id: nanoid(12),
-    type: "withdraw",
-    status: "pending",
-    steamTradeUrl,
-    skinIds,
-    instanceIds,
-    totalValue,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    message:
-      getBotMode() === "mock"
-        ? "Mock bot preparing withdraw offer…"
-        : "Bot queueing live Steam withdraw…",
-  };
-
-  user.steamTradeUrl = steamTradeUrl;
-  user.trades.unshift(trade);
-  saveUser(user);
-
-  if (getBotMode() === "live") {
-    void sendLiveTrade(trade).catch((err) => {
-      trade.status = "declined";
-      trade.message = `Live trade failed: ${err instanceof Error ? err.message : "unknown error"}`;
-      trade.updatedAt = Date.now();
-      saveUser(user);
-    });
-  }
-
-  return trade;
+export function findAcceptedTrade(user: UserState, tradeId: string) {
+  tickUserTrades(user);
+  const trade = getTrade(user, tradeId);
+  return trade?.status === "accepted" ? trade : null;
 }
 
-/**
- * Placeholder for a real Steam bot integration.
- * Install steam-user, steam-totp, steam-tradeoffer-manager and implement here.
- */
-async function sendLiveTrade(trade: TradeOffer): Promise<void> {
-  if (!botStatus().ready) {
-    throw new Error(
-      "Steam bot credentials missing. Set STEAM_* env vars or use mock mode.",
-    );
-  }
-  // Real implementation would:
-  // 1. Login with steam-user + steam-totp
-  // 2. Create TradeOfferManager offer to partner/token from trade.steamTradeUrl
-  // 3. Add items (deposit: receive user's items; withdraw: send bot items)
-  // 4. Send offer and poll until accepted
-  console.info("[steam-bot] live trade queued", trade.id);
-  throw new Error(
-    "Live Steam bot not wired yet — install steam packages and implement sendLiveTrade(), or set STEAM_BOT_MODE=mock.",
-  );
+/** Force-accept for tests / mock speed-up after enough time */
+export function forceAcceptIfReady(userId: string, tradeId: string) {
+  const user = getUser(userId);
+  tickUserTrades(user);
+  return getTrade(user, tradeId);
 }

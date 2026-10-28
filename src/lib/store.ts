@@ -1,13 +1,7 @@
 import { nanoid } from "nanoid";
+import { HOUSE_RAKE_PERCENT } from "./config";
 import { generateServerSeed, hashServerSeed } from "./fairness";
 import { SKINS, type Skin } from "./skins";
-
-export interface OwnedSkin {
-  instanceId: string;
-  skinId: string;
-  acquiredAt: number;
-  source: "case" | "deposit" | "roulette" | "coinflip" | "starter";
-}
 
 export type TradeStatus =
   | "pending"
@@ -16,162 +10,318 @@ export type TradeStatus =
   | "declined"
   | "expired";
 
+export interface EscrowItem {
+  instanceId: string;
+  skinId: string;
+  assetId: string;
+  ownerId: string;
+}
+
 export interface TradeOffer {
   id: string;
-  type: "deposit" | "withdraw";
+  purpose: "coinflip_create" | "coinflip_join" | "jackpot_deposit";
+  gameId: string;
   status: TradeStatus;
   steamTradeUrl: string;
-  skinIds: string[];
-  instanceIds?: string[];
+  items: EscrowItem[];
   totalValue: number;
   createdAt: number;
   updatedAt: number;
   message: string;
 }
 
-export interface GameRound {
+export interface SteamInvItem {
+  assetId: string;
+  skinId: string;
+  /** Locked while in an open trade or active game */
+  locked: boolean;
+}
+
+export interface CoinflipGame {
   id: string;
-  game: "case" | "roulette" | "coinflip";
-  bet: number;
-  payout: number;
-  result: string;
+  status: "awaiting_creator_trade" | "open" | "awaiting_joiner_trade" | "flipping" | "settled" | "cancelled";
+  creatorId: string;
+  creatorSide: "ct" | "t";
+  creatorItems: EscrowItem[];
+  joinerId?: string;
+  joinerSide?: "ct" | "t";
+  joinerItems: EscrowItem[];
+  winnerId?: string;
+  resultSide?: "ct" | "t";
+  totalValue: number;
+  rakeValue: number;
+  winnerItems: EscrowItem[];
+  houseItems: EscrowItem[];
   serverSeedHash: string;
-  serverSeed: string;
+  serverSeed?: string;
   clientSeed: string;
   nonce: number;
   createdAt: number;
+  settledAt?: number;
+}
+
+export interface JackpotDeposit {
+  userId: string;
+  displayName: string;
+  items: EscrowItem[];
+  value: number;
+}
+
+export interface JackpotRound {
+  id: string;
+  status: "open" | "awaiting_trades" | "spinning" | "settled";
+  deposits: JackpotDeposit[];
+  pendingTrades: string[];
+  totalValue: number;
+  rakeValue: number;
+  winnerId?: string;
+  winnerItems: EscrowItem[];
+  houseItems: EscrowItem[];
+  endsAt: number;
+  serverSeedHash: string;
+  serverSeed?: string;
+  clientSeed: string;
+  nonce: number;
+  createdAt: number;
+  settledAt?: number;
 }
 
 export interface UserState {
   id: string;
   displayName: string;
-  balance: number;
-  inventory: OwnedSkin[];
+  steamConnected: boolean;
   steamTradeUrl: string;
+  steamInventory: SteamInvItem[];
+  /** Skins won / held on-site after games */
+  siteInventory: EscrowItem[];
   clientSeed: string;
   serverSeed: string;
   serverSeedHash: string;
   nonce: number;
   trades: TradeOffer[];
-  history: GameRound[];
+  houseEarnings: number;
 }
 
-const globalStore = globalThis as unknown as {
-  __scrapyardStore?: Map<string, UserState>;
-};
+interface GlobalState {
+  users: Map<string, UserState>;
+  coinflips: Map<string, CoinflipGame>;
+  jackpot: JackpotRound | null;
+  houseBank: EscrowItem[];
+  houseEarnings: number;
+}
 
-function store(): Map<string, UserState> {
-  if (!globalStore.__scrapyardStore) {
-    globalStore.__scrapyardStore = new Map();
+const g = globalThis as unknown as { __scrapyardV2?: GlobalState };
+
+function state(): GlobalState {
+  if (!g.__scrapyardV2) {
+    g.__scrapyardV2 = {
+      users: new Map(),
+      coinflips: new Map(),
+      jackpot: null,
+      houseBank: [],
+      houseEarnings: 0,
+    };
   }
-  return globalStore.__scrapyardStore;
+  return g.__scrapyardV2;
 }
 
-const DEMO_USER_ID = "demo-survivor";
+export const DEMO_USER_ID = "demo-survivor";
 
-function starterInventory(): OwnedSkin[] {
-  return [
-    {
-      instanceId: nanoid(10),
-      skinId: "ak-tempered",
-      acquiredAt: Date.now(),
-      source: "starter",
-    },
-    {
-      instanceId: nanoid(10),
-      skinId: "mp5-urban",
-      acquiredAt: Date.now(),
-      source: "starter",
-    },
-  ];
+const STEAM_POOL = [
+  "ak-tempered",
+  "ak-forest",
+  "mp5-urban",
+  "thompson-tundra",
+  "sar-hunter",
+  "python-copper",
+  "lr-midnight",
+  "bolt-arctic",
+  "ak-ember",
+  "mp5-neon",
+  "lr-oxide",
+  "sar-blood",
+  "ak-dragon",
+  "bolt-eclipse",
+];
+
+export function buildMockSteamInventory(): SteamInvItem[] {
+  return STEAM_POOL.map((skinId) => ({
+    assetId: `steam_${skinId}_${nanoid(6)}`,
+    skinId,
+    locked: false,
+  }));
 }
 
-export function createUser(id = DEMO_USER_ID): UserState {
+function freshUser(id: string): UserState {
   const serverSeed = generateServerSeed();
-  const user: UserState = {
+  return {
     id,
-    displayName: "Survivor",
-    balance: 2500, // $25.00 demo balance
-    inventory: starterInventory(),
+    displayName: id === DEMO_USER_ID ? "Survivor" : `Player-${id.slice(0, 5)}`,
+    steamConnected: false,
     steamTradeUrl: "",
+    steamInventory: [],
+    siteInventory: [],
     clientSeed: nanoid(12),
     serverSeed,
     serverSeedHash: hashServerSeed(serverSeed),
     nonce: 0,
     trades: [],
-    history: [],
+    houseEarnings: 0,
   };
-  store().set(id, user);
-  return user;
 }
 
 export function getUser(id = DEMO_USER_ID): UserState {
-  const existing = store().get(id);
-  if (existing) return existing;
-  return createUser(id);
+  const s = state();
+  let user = s.users.get(id);
+  if (!user) {
+    user = freshUser(id);
+    s.users.set(id, user);
+  }
+  return user;
 }
 
-export function saveUser(user: UserState): void {
-  store().set(user.id, user);
+export function saveUser(user: UserState) {
+  state().users.set(user.id, user);
+}
+
+export function getSkinOrThrow(skinId: string): Skin {
+  const skin = SKINS.find((x) => x.id === skinId);
+  if (!skin) throw new Error(`Unknown skin ${skinId}`);
+  return skin;
+}
+
+export function itemsValue(items: { skinId: string }[]): number {
+  return items.reduce((sum, i) => sum + getSkinOrThrow(i.skinId).price, 0);
+}
+
+export function enrichItem(item: EscrowItem | SteamInvItem) {
+  return {
+    ...item,
+    skin: getSkinOrThrow(item.skinId),
+  };
+}
+
+export function connectSteam(user: UserState, tradeUrl: string, displayName?: string) {
+  if (!tradeUrl.includes("steamcommunity.com/tradeoffer/new")) {
+    throw new Error(
+      "Invalid trade URL. Use the link from Steam → Inventory → Trade Offers → Who can send me Trade Offers.",
+    );
+  }
+  user.steamTradeUrl = tradeUrl.trim();
+  user.steamConnected = true;
+  if (displayName?.trim()) user.displayName = displayName.trim().slice(0, 24);
+  if (user.steamInventory.length === 0) {
+    user.steamInventory = buildMockSteamInventory();
+  }
+  saveUser(user);
+  return user;
+}
+
+export function getCoinflips(): CoinflipGame[] {
+  return [...state().coinflips.values()].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function getCoinflip(id: string) {
+  return state().coinflips.get(id);
+}
+
+export function saveCoinflip(game: CoinflipGame) {
+  state().coinflips.set(game.id, game);
+}
+
+export function getJackpot(): JackpotRound {
+  const s = state();
+  if (!s.jackpot || s.jackpot.status === "settled") {
+    s.jackpot = createJackpotRound();
+  }
+  return s.jackpot;
+}
+
+export function saveJackpot(round: JackpotRound) {
+  state().jackpot = round;
+}
+
+function createJackpotRound(): JackpotRound {
+  const serverSeed = generateServerSeed();
+  return {
+    id: nanoid(10),
+    status: "open",
+    deposits: [],
+    pendingTrades: [],
+    totalValue: 0,
+    rakeValue: 0,
+    winnerItems: [],
+    houseItems: [],
+    endsAt: Date.now() + 90_000,
+    serverSeedHash: hashServerSeed(serverSeed),
+    serverSeed,
+    clientSeed: "jackpot",
+    nonce: 0,
+    createdAt: Date.now(),
+  };
+}
+
+export function rotateJackpotIfNeeded() {
+  const s = state();
+  if (!s.jackpot || s.jackpot.status === "settled") {
+    s.jackpot = createJackpotRound();
+  }
+  return s.jackpot;
+}
+
+export function addHouseItems(items: EscrowItem[], value: number) {
+  const s = state();
+  s.houseBank.push(...items);
+  s.houseEarnings += value;
 }
 
 export function publicUser(user: UserState) {
   return {
     id: user.id,
     displayName: user.displayName,
-    balance: user.balance,
-    inventory: user.inventory.map((item) => ({
-      ...item,
-      skin: SKINS.find((s) => s.id === item.skinId) ?? null,
-    })),
+    steamConnected: user.steamConnected,
     steamTradeUrl: user.steamTradeUrl,
+    steamInventory: user.steamInventory.map(enrichItem),
+    siteInventory: user.siteInventory.map(enrichItem),
     clientSeed: user.clientSeed,
     serverSeedHash: user.serverSeedHash,
     nonce: user.nonce,
-    trades: user.trades.slice(0, 20),
-    history: user.history.slice(0, 30).map((h) => ({
-      ...h,
-      // Reveal seed only after round is recorded (always revealed in history)
-    })),
+    trades: user.trades.slice(0, 25),
   };
 }
 
-export function inventoryValue(user: UserState): number {
-  return user.inventory.reduce((sum, item) => {
-    const skin = SKINS.find((s) => s.id === item.skinId);
-    return sum + (skin?.price ?? 0);
-  }, 0);
+export function publicCoinflip(game: CoinflipGame) {
+  return {
+    ...game,
+    creatorItems: game.creatorItems.map(enrichItem),
+    joinerItems: game.joinerItems.map(enrichItem),
+    winnerItems: game.winnerItems.map(enrichItem),
+    houseItems: game.houseItems.map(enrichItem),
+    // hide seed until settled
+    serverSeed: game.status === "settled" ? game.serverSeed : undefined,
+  };
 }
 
-export function resolveOwned(
-  user: UserState,
-  instanceId: string,
-): { owned: OwnedSkin; skin: Skin } | null {
-  const owned = user.inventory.find((i) => i.instanceId === instanceId);
-  if (!owned) return null;
-  const skin = SKINS.find((s) => s.id === owned.skinId);
-  if (!skin) return null;
-  return { owned, skin };
+export function publicJackpot(round: JackpotRound) {
+  return {
+    ...round,
+    deposits: round.deposits.map((d) => ({
+      ...d,
+      items: d.items.map(enrichItem),
+    })),
+    winnerItems: round.winnerItems.map(enrichItem),
+    houseItems: round.houseItems.map(enrichItem),
+    serverSeed: round.status === "settled" ? round.serverSeed : undefined,
+  };
 }
 
-/** Mock Steam inventory available for deposit */
-export function mockSteamInventory(): Array<Skin & { assetId: string }> {
-  const depositPool = [
-    "ak-forest",
-    "thompson-tundra",
-    "sar-hunter",
-    "python-copper",
-    "lr-midnight",
-    "bolt-arctic",
-    "ak-ember",
-    "mp5-neon",
-    "lr-oxide",
-  ];
-  return depositPool
-    .map((id) => SKINS.find((s) => s.id === id))
-    .filter((s): s is Skin => Boolean(s))
-    .map((skin) => ({
-      ...skin,
-      assetId: `steam_${skin.id}_${nanoid(6)}`,
-    }));
+export function houseStats() {
+  const s = state();
+  return {
+    earnings: s.houseEarnings,
+    itemCount: s.houseBank.length,
+    rakePercent: HOUSE_RAKE_PERCENT,
+  };
 }
+
+export { nanoid, state };

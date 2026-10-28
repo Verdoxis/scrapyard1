@@ -11,42 +11,34 @@ import {
 import { api } from "@/lib/api";
 import type { Skin } from "@/lib/skins";
 
-export interface PublicOwned {
-  instanceId: string;
+export interface EnrichedSkinItem {
+  assetId?: string;
+  instanceId?: string;
   skinId: string;
-  acquiredAt: number;
-  source: string;
-  skin: Skin | null;
+  locked?: boolean;
+  ownerId?: string;
+  skin: Skin;
 }
 
 export interface PublicUser {
   id: string;
   displayName: string;
-  balance: number;
-  inventory: PublicOwned[];
+  steamConnected: boolean;
   steamTradeUrl: string;
+  steamInventory: EnrichedSkinItem[];
+  siteInventory: EnrichedSkinItem[];
   clientSeed: string;
   serverSeedHash: string;
   nonce: number;
   trades: Array<{
     id: string;
-    type: "deposit" | "withdraw";
+    purpose: string;
+    gameId: string;
     status: string;
-    steamTradeUrl: string;
-    skinIds: string[];
-    instanceIds?: string[];
     totalValue: number;
-    createdAt: number;
-    updatedAt: number;
     message: string;
-  }>;
-  history: Array<{
-    id: string;
-    game: string;
-    bet: number;
-    payout: number;
-    result: string;
     createdAt: number;
+    items: Array<{ skinId: string; assetId: string }>;
   }>;
 }
 
@@ -57,14 +49,19 @@ interface BotInfo {
   message: string;
 }
 
+interface HouseInfo {
+  earnings: number;
+  itemCount: number;
+  rakePercent: number;
+}
+
 interface AppCtx {
   user: PublicUser | null;
-  inventoryValue: number;
   bot: BotInfo | null;
+  house: HouseInfo | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  topUp: () => Promise<void>;
   setUser: (user: PublicUser) => void;
 }
 
@@ -72,8 +69,8 @@ const Ctx = createContext<AppCtx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [inventoryValue, setInventoryValue] = useState(0);
   const [bot, setBot] = useState<BotInfo | null>(null);
+  const [house, setHouse] = useState<HouseInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,25 +78,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const data = await api<{
         user: PublicUser;
-        inventoryValue: number;
         bot: BotInfo;
+        house: HouseInfo;
       }>("/api/me");
       setUser(data.user);
-      setInventoryValue(data.inventoryValue);
       setBot(data.bot);
+      setHouse(data.house);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const topUp = useCallback(async () => {
-    const data = await api<{ balance: number }>("/api/demo/topup", {
-      method: "POST",
-    });
-    setUser((u) => (u ? { ...u, balance: data.balance } : u));
   }, []);
 
   useEffect(() => {
@@ -110,16 +100,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{
-        user,
-        inventoryValue,
-        bot,
-        loading,
-        error,
-        refresh,
-        topUp,
-        setUser,
-      }}
+      value={{ user, bot, house, loading, error, refresh, setUser }}
     >
       {children}
     </Ctx.Provider>

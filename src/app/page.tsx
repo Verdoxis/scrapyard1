@@ -1,4 +1,5 @@
-import { CaseOpener } from "@/components/case-opener";
+import Link from "next/link";
+import { HOUSE_RAKE_PERCENT } from "@/lib/config";
 
 export default function HomePage() {
   return (
@@ -20,35 +21,72 @@ export default function HomePage() {
         />
         <div className="relative px-6 py-14 sm:px-10 sm:py-20">
           <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-[#c45c26]">
-            Live demo · mock Steam bot
+            Steam skins · {HOUSE_RAKE_PERCENT}% house cut
           </p>
           <h1 className="mt-3 max-w-xl font-display text-5xl leading-none tracking-[0.06em] text-[#f3ebe2] sm:text-7xl">
             SCRAPYARD
           </h1>
           <p className="mt-4 max-w-lg text-base text-[#c4b5a5] sm:text-lg">
-            Open crates, spin roulette, flip for skins — deposit and withdraw
-            through the Steam trade bot.
+            Connect Steam, see your inventory on screen, and gamble skins in
+            coinflip or jackpot. The bot trades you for the items you select.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href="#opener"
+            <Link
+              href="/connect"
               className="inline-flex items-center rounded bg-[#c45c26] px-5 py-2.5 font-display text-sm tracking-wider text-[#120e0b] transition hover:bg-[#e07030]"
             >
-              Open a crate
-            </a>
-            <a
-              href="/trades"
+              Connect Steam
+            </Link>
+            <Link
+              href="/coinflip"
               className="inline-flex items-center rounded border border-[rgba(240,160,96,0.35)] px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#f0a060] transition hover:bg-[rgba(196,92,38,0.12)]"
             >
-              Connect Steam bot
-            </a>
+              Coinflip
+            </Link>
+            <Link
+              href="/jackpot"
+              className="inline-flex items-center rounded border border-[rgba(240,160,96,0.35)] px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-[#f0a060] transition hover:bg-[rgba(196,92,38,0.12)]"
+            >
+              Jackpot
+            </Link>
           </div>
         </div>
       </section>
 
-      <div id="opener">
-        <CaseOpener />
-      </div>
+      <section className="grid gap-4 md:grid-cols-3">
+        {[
+          {
+            step: "01",
+            title: "Connect trade URL",
+            body: "Follow the Steam setup steps and paste your trade URL so the bot can reach you.",
+            href: "/connect",
+          },
+          {
+            step: "02",
+            title: "Pick listed skins",
+            body: "Your inventory is already on the page. Select what you want to put into a game.",
+            href: "/connect",
+          },
+          {
+            step: "03",
+            title: "Bot sends the trade",
+            body: "Accept the offer, then play coinflip or jackpot. Site keeps a small % of every pot.",
+            href: "/coinflip",
+          },
+        ].map((card) => (
+          <Link
+            key={card.step}
+            href={card.href}
+            className="rounded border border-[rgba(196,92,38,0.22)] bg-[rgba(20,16,12,0.85)] p-5 transition hover:border-[rgba(196,92,38,0.5)]"
+          >
+            <p className="font-mono text-xs text-[#c45c26]">{card.step}</p>
+            <h2 className="mt-2 font-display text-2xl tracking-wide text-[#f3ebe2]">
+              {card.title}
+            </h2>
+            <p className="mt-2 text-sm text-[#a89a8c]">{card.body}</p>
+          </Link>
+        ))}
+      </section>
     </main>
   );
 }
