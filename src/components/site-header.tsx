@@ -8,7 +8,7 @@ import { useApp } from "@/components/app-provider";
 import { ScrapyardLogo } from "@/components/logo";
 
 const NAV = [
-  { href: "/", label: "Lobby" },
+  { href: "/", label: "Home" },
   { href: "/coinflip", label: "Coinflip" },
   { href: "/jackpot", label: "Jackpot" },
   { href: "/chat", label: "Chat" },
