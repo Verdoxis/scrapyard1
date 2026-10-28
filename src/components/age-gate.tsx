@@ -35,7 +35,7 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
   if (!ready) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0a0806] text-sm text-[#a89888]">
-        Loading…
+        Loading Scrapyard…
       </div>
     );
   }
@@ -51,24 +51,24 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
             "linear-gradient(165deg, rgba(40,24,16,0.98), rgba(12,10,8,0.99))",
         }}
       >
-        <ScrapyardLogo markClassName="h-12 w-12" />
+        <ScrapyardLogo markClassName="h-14 w-14" />
         <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.28em] text-[#cd412b]">
-          Age verification · Gambling warning
+          Welcome to Scrapyard
         </p>
         <h1 className="mt-2 font-display text-3xl tracking-wide text-[#efe6da] sm:text-4xl">
-          18+ only
+          Are you 18 or older?
         </h1>
         <div className="mt-4 space-y-3 text-sm leading-relaxed text-[#c4b5a5]">
           <p>
-            SCRAPYARD is a skin gambling site. By entering you confirm you are{" "}
-            <strong className="text-[#efe6da]">at least 18 years old</strong>{" "}
-            (or the legal age for gambling where you live — whichever is higher).
+            Glad you found the yard. Before you flip coins or drop into
+            jackpot, we need a quick check — this site involves skin gambling.
           </p>
           <p>
-            Gambling can be addictive and you can lose items of real value.
-            Never wager more than you can afford to lose. If you need help, use
-            the self-ban tools in{" "}
-            <span className="text-[#f0a060]">Account</span> or visit{" "}
+            By entering you confirm you are{" "}
+            <strong className="text-[#efe6da]">at least 18</strong> (or the
+            legal gambling age where you live, if higher). Never stake more
+            than you can afford to lose. Self-ban tools live on{" "}
+            <span className="text-[#f0a060]">Account</span>, and help is at{" "}
             <a
               href="https://www.begambleaware.org/"
               target="_blank"
@@ -80,8 +80,8 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
             .
           </p>
           <p className="text-xs text-[#8a7d70]">
-            This is a demo with mock Steam trades by default. Not affiliated
-            with Facepunch or Valve. Local laws may prohibit online gambling.
+            Demo mode uses mock Steam trades by default. Not affiliated with
+            Facepunch or Valve.
           </p>
         </div>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row">
@@ -89,14 +89,14 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
             className="flex-1 bg-[#cd412b] text-[#140c08] hover:bg-[#e25a3c]"
             onClick={accept}
           >
-            I am 18+ — enter
+            Yes, I&apos;m 18+ — welcome me in
           </Button>
           <Button
             variant="outline"
             className="flex-1 border-[rgba(240,160,96,0.35)] text-[#f0a060] hover:bg-[rgba(205,65,43,0.12)]"
             onClick={decline}
           >
-            Exit
+            No — take me out
           </Button>
         </div>
       </div>

@@ -18,22 +18,22 @@ interface Presence {
 }
 
 const g = globalThis as unknown as {
-  __scrapyardChat?: {
+  __scrapyardChatV2?: {
     messages: ChatMessage[];
     presence: Map<string, Presence>;
   };
 };
 
 function chatState() {
-  if (!g.__scrapyardChat) {
-    g.__scrapyardChat = {
+  if (!g.__scrapyardChatV2) {
+    g.__scrapyardChatV2 = {
       messages: [
         {
           id: nanoid(8),
           userId: "system",
           displayName: "SCRAPYARD",
           avatarUrl: "/logo.svg",
-          text: "Welcome to the yard. Connect Steam, list your skins, and flip or jackpot. House takes 5%.",
+          text: "Welcome to Scrapyard. Connect Steam on Account, then join coinflip or jackpot. House cut is a small item when one fits (~5%).",
           createdAt: Date.now() - 60_000,
         },
       ],
@@ -45,7 +45,7 @@ function chatState() {
       { id: "bot-scrap", name: "ScrapBandit", avatar: null },
       { id: "bot-roof", name: "RoofCamper", avatar: null },
     ]) {
-      g.__scrapyardChat.presence.set(bot.id, {
+      g.__scrapyardChatV2.presence.set(bot.id, {
         userId: bot.id,
         displayName: bot.name,
         avatarUrl: bot.avatar,
@@ -53,7 +53,7 @@ function chatState() {
       });
     }
   }
-  return g.__scrapyardChat;
+  return g.__scrapyardChatV2;
 }
 
 const ONLINE_TTL_MS = 45_000;

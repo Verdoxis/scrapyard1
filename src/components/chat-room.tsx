@@ -84,10 +84,10 @@ export function ChatRoom({ compact }: { compact?: boolean }) {
       <header className="flex items-center justify-between border-b border-[rgba(196,92,38,0.22)] bg-[rgba(28,18,12,0.95)] px-4 py-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.28em] text-[#c45c26]">
-            Outpost chat
+            Yard chat
           </p>
           <h2 className="font-display text-xl tracking-wide text-[#f3ebe2]">
-            Radio · {online.count} online
+            {online.count} online
           </h2>
         </div>
         <div className="flex -space-x-2">
@@ -155,10 +155,13 @@ export function ChatRoom({ compact }: { compact?: boolean }) {
           </div>
         ) : (
           <p className="text-center text-sm text-[#a89a8c]">
-            <Link href="/account" className="text-[#f0a060] underline-offset-2 hover:underline">
-              Account
+            <Link
+              href="/account"
+              className="text-[#f0a060] underline-offset-2 hover:underline"
+            >
+              Connect Steam on Account
             </Link>{" "}
-            to talk on the radio.
+            to join the chat.
           </p>
         )}
         {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
