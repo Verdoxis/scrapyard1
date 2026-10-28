@@ -1,6 +1,11 @@
 import { connection } from "next/server";
 import { NextResponse } from "next/server";
-import { depositToJackpot, getPublicJackpot, progressJackpot } from "@/lib/jackpot";
+import {
+  depositToJackpot,
+  forceJackpotSpin,
+  getPublicJackpot,
+  progressJackpot,
+} from "@/lib/jackpot";
 
 export async function GET() {
   await connection();
@@ -17,6 +22,10 @@ export async function POST(req: Request) {
         ? body.assetIds.map(String)
         : [];
       return NextResponse.json(depositToJackpot(assetIds));
+    }
+
+    if (action === "force_spin") {
+      return NextResponse.json({ round: forceJackpotSpin() });
     }
 
     if (action === "progress") {

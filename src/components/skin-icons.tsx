@@ -2,22 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { formatPrice, type Skin } from "@/lib/skins";
-import { WeaponGlyph } from "@/components/weapon-glyph";
-import { cn } from "@/lib/utils";
+import { RARITY_META, formatPrice, type Skin } from "@/lib/skins";
 
 type SkinLike = Pick<
   Skin,
   "name" | "weapon" | "price" | "image" | "color" | "weaponType" | "rarity"
 >;
 
+function rarityColor(skin: SkinLike) {
+  return RARITY_META[skin.rarity]?.color ?? skin.color ?? "#a89888";
+}
+
 function CursorTooltip({
-  label,
+  name,
+  color,
   x,
   y,
   visible,
 }: {
-  label: string;
+  name: string;
+  color: string;
   x: number;
   y: number;
   visible: boolean;
@@ -28,13 +32,14 @@ function CursorTooltip({
 
   return createPortal(
     <div
-      className="pointer-events-none fixed z-[9999] max-w-[240px] rounded-sm border border-[rgba(205,65,43,0.45)] bg-[rgba(12,9,7,0.96)] px-2.5 py-1.5 text-xs text-[#efe6da] shadow-[0_8px_24px_rgba(0,0,0,0.55)]"
+      className="pointer-events-none fixed z-[9999] max-w-[240px] rounded-sm bg-[rgba(10,8,6,0.94)] px-2.5 py-1.5 text-xs shadow-[0_6px_18px_rgba(0,0,0,0.5)]"
       style={{
         left: Math.min(x + 14, window.innerWidth - 250),
         top: Math.min(y + 16, window.innerHeight - 48),
+        color,
       }}
     >
-      {label}
+      {name}
     </div>,
     document.body,
   );
@@ -43,11 +48,9 @@ function CursorTooltip({
 export function SkinIconChip({
   skin,
   size = "md",
-  showPrice,
 }: {
   skin: SkinLike;
   size?: "sm" | "md";
-  showPrice?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const [tip, setTip] = useState<{ x: number; y: number; on: boolean }>({
@@ -55,19 +58,13 @@ export function SkinIconChip({
     y: 0,
     on: false,
   });
-  const dim = size === "sm" ? "h-10 w-10" : "h-12 w-12";
-  const label = `${skin.weapon} · ${skin.name}${
-    showPrice !== false ? ` (${formatPrice(skin.price)})` : ""
-  }`;
+  const color = rarityColor(skin);
+  const dim = size === "sm" ? "h-11 w-11" : "h-14 w-14";
 
   return (
     <>
       <div
-        className={cn(
-          "relative shrink-0 overflow-hidden rounded-sm border border-[rgba(205,65,43,0.35)] bg-[linear-gradient(180deg,rgba(40,30,22,0.95),rgba(10,8,6,0.98))]",
-          dim,
-        )}
-        style={{ boxShadow: `inset 0 -2px 0 ${skin.color}` }}
+        className="flex shrink-0 flex-col items-center gap-1"
         onMouseEnter={(e) =>
           setTip({ x: e.clientX, y: e.clientY, on: true })
         }
@@ -76,26 +73,34 @@ export function SkinIconChip({
         }
         onMouseLeave={() => setTip((t) => ({ ...t, on: false }))}
       >
-        {skin.image && !failed ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={skin.image}
-            alt=""
-            className="h-full w-full object-contain p-0.5"
-            onError={() => setFailed(true)}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center opacity-80">
-            <WeaponGlyph
-              type={skin.weaponType}
-              color={skin.color}
-              className="h-6 w-6"
+        <div
+          className={`${dim} overflow-hidden rounded-sm bg-black/40`}
+          style={{ boxShadow: `inset 0 -2px 0 ${color}` }}
+        >
+          {skin.image && !failed ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={skin.image}
+              alt=""
+              className="h-full w-full object-contain p-0.5"
+              onError={() => setFailed(true)}
             />
-          </div>
-        )}
+          ) : (
+            <div
+              className="flex h-full w-full items-center justify-center text-[10px] font-semibold"
+              style={{ color }}
+            >
+              {skin.name.slice(0, 2).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <p className="font-mono text-[10px] text-[#d8cfc3]">
+          {formatPrice(skin.price)}
+        </p>
       </div>
       <CursorTooltip
-        label={label}
+        name={skin.name}
+        color={color}
         x={tip.x}
         y={tip.y}
         visible={tip.on}
@@ -113,7 +118,7 @@ export function SkinIconRow({
 }) {
   if (items.length === 0) return null;
   return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
+    <div className="mt-2 flex flex-wrap gap-2">
       {items.map((item, idx) => (
         <SkinIconChip
           key={`${item.skin.name}-${idx}`}

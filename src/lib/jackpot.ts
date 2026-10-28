@@ -1,7 +1,11 @@
 import { botItemsNearValue } from "./bots";
 import { fairFloat } from "./fairness";
 import { applyRake } from "./rake";
-import { createGambleTrade, tickUserTrades } from "./steam-bot";
+import {
+  createGambleTrade,
+  forceAcceptPendingTrades,
+  tickUserTrades,
+} from "./steam-bot";
 import {
   addHouseItems,
   assertNotSelfBanned,
@@ -17,6 +21,12 @@ import {
   type JackpotRound,
   type UserState,
 } from "./store";
+
+const SPIN_DURATION_MS = 7800;
+const BOT_AVATARS = [
+  "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+  "https://avatars.steamstatic.com/b5bd56c1aa4644a474a2e4972be27ef9e82e517e_full.jpg",
+];
 
 function requireSteam(user: UserState) {
   if (!user.steamConnected) {
@@ -53,7 +63,7 @@ export function depositToJackpot(assetIds: string[]) {
   round.pendingTrades.push(trade.id);
   if (round.status === "open") round.status = "awaiting_trades";
   if (round.deposits.length === 0 && round.pendingTrades.length === 1) {
-    round.endsAt = Date.now() + 90_000;
+    round.endsAt = Date.now() + 45_000;
   }
 
   // Seed rival bot deposits so solo demos can complete a round
@@ -65,6 +75,7 @@ export function depositToJackpot(assetIds: string[]) {
       round.deposits.push({
         userId: `bot-${i + 1}`,
         displayName: i === 0 ? "OilRigRaider" : "ScrapBandit",
+        avatarUrl: BOT_AVATARS[i] ?? BOT_AVATARS[0],
         items,
         value: itemsValue(items),
       });
@@ -77,8 +88,40 @@ export function depositToJackpot(assetIds: string[]) {
   return { round: publicJackpot(getJackpot()), trade };
 }
 
+/** Demo helper — start the spinner once there are enough deposits. */
+export function forceJackpotSpin() {
+  const user = getUser();
+  requireSteam(user);
+  const round = getJackpot();
+  if (round.status === "spinning" || round.status === "settled") {
+    return publicJackpot(round);
+  }
+  if (round.deposits.length < 2) {
+    throw new Error("Need at least two deposits to spin.");
+  }
+  forceAcceptPendingTrades(user);
+  round.endsAt = Date.now() - 1;
+  saveJackpot(round);
+  return progressJackpot();
+}
+
 export function progressJackpot() {
   let round = rotateJackpotIfNeeded();
+
+  if (
+    round.status === "spinning" &&
+    round.spinEndsAt &&
+    Date.now() >= round.spinEndsAt
+  ) {
+    round.status = "settled";
+    if (!round.settledAt) round.settledAt = Date.now();
+    saveJackpot(round);
+    return publicJackpot(getJackpot());
+  }
+
+  if (round.status === "spinning" || round.status === "settled") {
+    return publicJackpot(round);
+  }
 
   // Advance pending trades into deposits
   const stillPending: string[] = [];
@@ -96,10 +139,13 @@ export function progressJackpot() {
       if (existing) {
         existing.items.push(...trade.items);
         existing.value = itemsValue(existing.items);
+        existing.avatarUrl = owner.avatarUrl;
+        existing.displayName = owner.displayName;
       } else {
         const dep: JackpotDeposit = {
           userId: owner.id,
           displayName: owner.displayName,
+          avatarUrl: owner.avatarUrl,
           items: [...trade.items],
           value: itemsValue(trade.items),
         };
@@ -132,12 +178,10 @@ export function progressJackpot() {
     if (round.deposits.length >= 2) {
       settleJackpot(round);
     } else if (round.deposits.length === 1) {
-      // Refund sole depositor to site inventory, start new round
       refundJackpot(round);
       round = rotateJackpotIfNeeded();
     } else {
-      // empty — extend
-      round.endsAt = Date.now() + 90_000;
+      round.endsAt = Date.now() + 45_000;
       round.status = "open";
       saveJackpot(round);
     }
@@ -147,17 +191,16 @@ export function progressJackpot() {
 }
 
 function findTradeOwner(tradeId: string) {
-  // Demo: only one primary user, but scan known user
   const user = getUser();
   if (user.trades.some((t) => t.id === tradeId)) return user;
   return null;
 }
 
 function settleJackpot(round: JackpotRound) {
-  round.status = "spinning";
   const total = round.deposits.reduce((s, d) => s + d.value, 0);
   if (total <= 0) {
     round.status = "settled";
+    round.settledAt = Date.now();
     saveJackpot(round);
     return;
   }
@@ -178,6 +221,11 @@ function settleJackpot(round: JackpotRound) {
   }
 
   round.winnerId = winner.userId;
+  round.winningTicket = roll;
+  round.spinStartedAt = Date.now();
+  round.spinEndsAt = Date.now() + SPIN_DURATION_MS;
+  round.status = "spinning";
+
   const potItems = round.deposits.flatMap((d) => d.items);
   const { winnerItems, houseItems, totalValue, rakeValue } = applyRake(potItems);
   round.totalValue = totalValue;
@@ -205,13 +253,12 @@ function settleJackpot(round: JackpotRound) {
     });
   }
 
-  round.status = "settled";
-  round.settledAt = Date.now();
   saveJackpot(round);
 }
 
 function refundJackpot(round: JackpotRound) {
   for (const dep of round.deposits) {
+    if (dep.userId.startsWith("bot-")) continue;
     const user = getUser(dep.userId);
     user.siteInventory.push(...dep.items);
     saveUser(user);
@@ -220,3 +267,5 @@ function refundJackpot(round: JackpotRound) {
   round.settledAt = Date.now();
   saveJackpot(round);
 }
+
+export { SPIN_DURATION_MS };

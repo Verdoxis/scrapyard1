@@ -137,3 +137,19 @@ export function forceAcceptIfReady(userId: string, tradeId: string) {
   tickUserTrades(user);
   return getTrade(user, tradeId);
 }
+
+/** Instantly accept open mock trades (demo spin / testing). */
+export function forceAcceptPendingTrades(user: UserState) {
+  if (getBotMode() !== "mock") return;
+  for (const trade of user.trades) {
+    if (trade.status !== "pending" && trade.status !== "sent") continue;
+    trade.status = "accepted";
+    trade.updatedAt = Date.now();
+    trade.message = "Trade accepted — skins are in escrow for the game.";
+    const assetSet = new Set(trade.items.map((i) => i.assetId));
+    user.steamInventory = user.steamInventory.filter(
+      (i) => !assetSet.has(i.assetId),
+    );
+  }
+  saveUser(user);
+}

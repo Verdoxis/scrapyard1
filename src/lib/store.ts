@@ -69,6 +69,7 @@ export interface CoinflipGame {
 export interface JackpotDeposit {
   userId: string;
   displayName: string;
+  avatarUrl: string | null;
   items: EscrowItem[];
   value: number;
 }
@@ -81,9 +82,13 @@ export interface JackpotRound {
   totalValue: number;
   rakeValue: number;
   winnerId?: string;
+  /** Fair roll in [0,1) — position on the chance line */
+  winningTicket?: number;
   winnerItems: EscrowItem[];
   houseItems: EscrowItem[];
   endsAt: number;
+  spinStartedAt?: number;
+  spinEndsAt?: number;
   serverSeedHash: string;
   serverSeed?: string;
   clientSeed: string;
@@ -135,11 +140,11 @@ interface GlobalState {
   houseEarnings: number;
 }
 
-const g = globalThis as unknown as { __scrapyardV5?: GlobalState };
+const g = globalThis as unknown as { __scrapyardV6?: GlobalState };
 
 function state(): GlobalState {
-  if (!g.__scrapyardV5) {
-    g.__scrapyardV5 = {
+  if (!g.__scrapyardV6) {
+    g.__scrapyardV6 = {
       users: new Map(),
       coinflips: new Map(),
       jackpot: null,
@@ -147,7 +152,7 @@ function state(): GlobalState {
       houseEarnings: 0,
     };
   }
-  return g.__scrapyardV5;
+  return g.__scrapyardV6;
 }
 
 export function emptyStats(): UserStats {
@@ -323,9 +328,19 @@ export function saveCoinflip(game: CoinflipGame) {
   state().coinflips.set(game.id, game);
 }
 
+const SETTLED_GRACE_MS = 14_000;
+
 export function getJackpot(): JackpotRound {
   const s = state();
-  if (!s.jackpot || s.jackpot.status === "settled") {
+  if (!s.jackpot) {
+    s.jackpot = createJackpotRound();
+    return s.jackpot;
+  }
+  if (
+    s.jackpot.status === "settled" &&
+    s.jackpot.settledAt &&
+    Date.now() - s.jackpot.settledAt > SETTLED_GRACE_MS
+  ) {
     s.jackpot = createJackpotRound();
   }
   return s.jackpot;
@@ -346,7 +361,7 @@ function createJackpotRound(): JackpotRound {
     rakeValue: 0,
     winnerItems: [],
     houseItems: [],
-    endsAt: Date.now() + 90_000,
+    endsAt: Date.now() + 45_000,
     serverSeedHash: hashServerSeed(serverSeed),
     serverSeed,
     clientSeed: "jackpot",
@@ -356,11 +371,7 @@ function createJackpotRound(): JackpotRound {
 }
 
 export function rotateJackpotIfNeeded() {
-  const s = state();
-  if (!s.jackpot || s.jackpot.status === "settled") {
-    s.jackpot = createJackpotRound();
-  }
-  return s.jackpot;
+  return getJackpot();
 }
 
 export function addHouseItems(items: EscrowItem[], value: number) {
